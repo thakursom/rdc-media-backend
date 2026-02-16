@@ -1,0 +1,31 @@
+const mongoose = require("mongoose");
+
+const SubGenreSchema = new mongoose.Schema(
+    {
+        id: {
+            type: Number,
+            required: true,
+            unique: true,
+            index: true
+        },
+        genre_id: {
+            type: Number,
+            required: true,
+            ref: "Genre"
+        },
+        title: {
+            type: String,
+            required: true
+        },
+        status: {
+            type: Number,
+            default: 1
+        }
+    },
+    {
+        timestamps: true,
+        versionKey: false
+    }
+);
+
+module.exports = mongoose.model("SubGenre", SubGenreSchema);
