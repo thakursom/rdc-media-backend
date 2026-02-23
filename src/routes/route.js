@@ -9,6 +9,7 @@ const userController = require("../controllers/userController");
 
 const genreController = require("../controllers/genreController");
 const languageController = require("../controllers/languageController");
+const dspController = require("../controllers/dspController");
 
 
 //Auth Apis
@@ -44,6 +45,10 @@ router.post("/create-subgenre", authMiddleware, genreController.createSubGenre);
 // Language Apis
 router.get("/languages", authMiddleware, languageController.getLanguages);
 router.post("/create-language", authMiddleware, languageController.createLanguage);
+
+// DSP Apis
+router.get("/dsps", authMiddleware, dspController.getDSPs);
+router.post("/create-dsp", authMiddleware, dspController.createDSP);
 
 
 module.exports = router;

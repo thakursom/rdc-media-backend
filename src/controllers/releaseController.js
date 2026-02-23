@@ -74,24 +74,9 @@ class ReleaseController {
                 catalogueNo: Joi.string().optional().allow(null, ''),
                 parentalWarning: Joi.string().optional().allow(null, '0'),
                 description: Joi.string().optional().allow(null, ''),
+                pricing: Joi.string().optional().allow(null, ''),
+                selectedStores: Joi.array().items(Joi.number()).optional(),
                 releaseArtists: Joi.array().items(Joi.string()).min(1).required(),
-                tracks: Joi.array().items(
-                    Joi.object({
-                        title: Joi.string().required(),
-                        artists: Joi.array().items(Joi.string()).min(1).required(),
-                        duration: Joi.number().required(),
-                        explicit: Joi.alternatives().try(Joi.number(), Joi.string(), Joi.boolean()).optional().allow(null, 0, '0', false),
-                        producer: Joi.string().optional().allow(null, ''),
-                        lyricist: Joi.string().optional().allow(null, ''),
-                        composer: Joi.string().optional().allow(null, ''),
-                        lyrics: Joi.string().optional().allow(null, ''),
-                        version: Joi.string().optional().allow(null, ''),
-                        isrc: Joi.string().optional().allow(null, ''),
-                        hasNewAudioFile: Joi.boolean().optional(),
-                        hasNewLyricsFile: Joi.boolean().optional(),
-                        name: Joi.string().optional().allow(null, '')
-                    }).unknown(true)
-                ).min(1).required()
             }).unknown(true);
 
             // Validate Data
@@ -168,6 +153,8 @@ class ReleaseController {
                 cat_number: data.catalogueNo || null,
                 parental_warning_type: data.parentalWarning || '0',
                 description: data.description || null,
+                pricing: data.pricing || null,
+                store_ids: data.selectedStores || [],
                 artwork: data.artworkFile || null,
                 artwork_path: artworkFile ? getFileUrl(artworkFile.filename) : null,
                 created_by: req.user?.id || null,

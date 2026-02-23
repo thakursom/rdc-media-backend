@@ -201,6 +201,16 @@ const ReleaseSchema = new mongoose.Schema(
             default: 0
         },
 
+        pricing: {
+            type: String,
+            default: null
+        },
+
+        store_ids: {
+            type: [Number],
+            default: []
+        },
+
         created_by: {
             type: Number,
             default: null
