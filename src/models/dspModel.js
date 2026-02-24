@@ -13,6 +13,10 @@ const DSPSchema = new mongoose.Schema(
             required: true,
             unique: true
         },
+        description: {
+            type: String,
+            default: ""
+        },
         status: {
             type: Number,
             default: 1

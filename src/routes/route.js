@@ -10,6 +10,7 @@ const userController = require("../controllers/userController");
 const genreController = require("../controllers/genreController");
 const languageController = require("../controllers/languageController");
 const dspController = require("../controllers/dspController");
+const fileController = require("../controllers/fileController");
 
 
 //Auth Apis
@@ -31,8 +32,18 @@ router.post("/create-release", authMiddleware, upload.fields([
 router.post("/create-artist", authMiddleware, artistController.createArtist);
 router.get("/artists", authMiddleware, artistController.getArtists);
 router.get("/artist/:id", authMiddleware, artistController.getArtistById);
+router.put("/update-artist/:id", authMiddleware, artistController.updateArtist);
+router.delete("/delete-artist/:id", authMiddleware, artistController.deleteArtist);
+router.post("/upload-image", authMiddleware, upload.single("artist_image"), fileController.uploadImage);
+router.post("/create-release-artist", authMiddleware, artistController.createReleaseArtist);
+router.get("/release-artists", authMiddleware, artistController.getReleaseArtists);
+router.get("/release-artist/:id", authMiddleware, artistController.getReleaseArtistById);
 
 //User Apis
+router.get("/users", authMiddleware, userController.getUsers);
+router.post("/create-user", authMiddleware, userController.createUser);
+router.put("/update-user/:id", authMiddleware, userController.updateUser);
+router.delete("/delete-user/:id", authMiddleware, userController.deleteUser);
 router.get("/labels", authMiddleware, userController.fetchAllLabels);
 router.get("/sublabels", authMiddleware, userController.fetchAllSubLabel);
 
@@ -40,7 +51,11 @@ router.get("/sublabels", authMiddleware, userController.fetchAllSubLabel);
 router.get("/genres", authMiddleware, genreController.getGenres);
 router.get("/subgenres", authMiddleware, genreController.getSubGenres);
 router.post("/create-genre", authMiddleware, genreController.createGenre);
+router.put("/update-genre/:id", authMiddleware, genreController.updateGenre);
+router.delete("/delete-genre/:id", authMiddleware, genreController.deleteGenre);
 router.post("/create-subgenre", authMiddleware, genreController.createSubGenre);
+router.put("/update-subgenre/:id", authMiddleware, genreController.updateSubGenre);
+router.delete("/delete-subgenre/:id", authMiddleware, genreController.deleteSubGenre);
 
 // Language Apis
 router.get("/languages", authMiddleware, languageController.getLanguages);
@@ -49,6 +64,8 @@ router.post("/create-language", authMiddleware, languageController.createLanguag
 // DSP Apis
 router.get("/dsps", authMiddleware, dspController.getDSPs);
 router.post("/create-dsp", authMiddleware, dspController.createDSP);
+router.put("/update-dsp/:id", authMiddleware, dspController.updateDSP);
+router.delete("/delete-dsp/:id", authMiddleware, dspController.deleteDSP);
 
 
 module.exports = router;

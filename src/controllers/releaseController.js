@@ -57,7 +57,6 @@ class ReleaseController {
             // Define Joi Schema
             const schema = Joi.object({
                 title: Joi.string().required().messages({ 'any.required': 'Title is required' }),
-                // releaseType: Joi.string().required(),
                 primaryGenre: Joi.number().required(),
                 secondaryGenre: Joi.number().optional().allow(null),
                 language: Joi.number().required(),
@@ -99,7 +98,7 @@ class ReleaseController {
             const baseUrl = process.env.BASE_URL;
             const getFileUrl = (filename) => filename ? `${baseUrl}/public/uploads/${filename}` : null;
 
-            console.log("data", data);
+
             let upcNumber = data.upc;
             let isrcNumber = data.isrc;
 
@@ -174,7 +173,7 @@ class ReleaseController {
                     try {
                         const trackId = await getNextId(Track);
 
-                        console.log("Creating track:", track.name);
+
 
                         let audioPath = null;
                         if (track.hasNewAudioFile && trackFiles[audioFileIndex]) {

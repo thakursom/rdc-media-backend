@@ -1,10 +1,147 @@
 const User = require("../models/userModel");
 const ResponseService = require("../services/responseService");
+const bcrypt = require("bcryptjs");
+
+async function getNextId(model) {
+    const lastDoc = await model.findOne().sort({ id: -1 }).limit(1);
+    return lastDoc && lastDoc.id ? lastDoc.id + 1 : 1;
+}
 
 class UserController {
 
-    constructor() { }
 
+    // Get all users with pagination and search
+    async getUsers(req, res, next) {
+        try {
+            const page = parseInt(req.query.page) || 1;
+            const limit = parseInt(req.query.limit) || 10;
+            const skip = (page - 1) * limit;
+            const { search, role, id } = req.query;
+
+            let query = {};
+            if (id) {
+                query.id = id;
+            }
+            if (role) {
+                query.role = role;
+            }
+            if (search) {
+                query.$or = [
+                    { name: { $regex: search, $options: "i" } },
+                    { email: { $regex: search, $options: "i" } },
+                    { third_party_username: { $regex: search, $options: "i" } }
+                ];
+            }
+
+            const totalDocs = await User.countDocuments(query);
+            const users = await User.find(query)
+                .select("-password")
+                .sort({ createdAt: -1 })
+                .skip(skip)
+                .limit(limit);
+
+            return res.status(200).json({
+                success: true,
+                message: "Users fetched successfully",
+                data: users,
+                pagination: {
+                    totalDocs,
+                    totalPages: Math.ceil(totalDocs / limit),
+                    currentPage: page,
+                    limit
+                }
+            });
+        } catch (error) {
+            next(error);
+        }
+    }
+
+    // Create User
+    async createUser(req, res, next) {
+        try {
+            const { name, email, phone, password, role, third_party_username } = req.body;
+
+            if (!name || !email || !password || !role) {
+                return ResponseService.error(res, "Required fields are missing", 400);
+            }
+
+            const existingUser = await User.findOne({ email });
+            if (existingUser) {
+                return ResponseService.error(res, "User with this email already exists", 400);
+            }
+
+            const hashedPassword = await bcrypt.hash(password, 10);
+            const id = await getNextId(User);
+
+            const newUser = new User({
+                id,
+                name,
+                email,
+                phone,
+                password: hashedPassword,
+                role,
+                third_party_username
+            });
+
+            await newUser.save();
+
+            const userResponse = newUser.toObject();
+            delete userResponse.password;
+
+            return ResponseService.success(res, "User created successfully", { user: userResponse });
+        } catch (error) {
+            next(error);
+        }
+    }
+
+    // Update User
+    async updateUser(req, res, next) {
+        try {
+            const { id } = req.params;
+            const { name, email, phone, password, role, third_party_username } = req.body;
+
+            const user = await User.findOne({ id: id });
+            if (!user) {
+                return ResponseService.error(res, "User not found", 404);
+            }
+
+            if (email && email !== user.email) {
+                const emailExists = await User.findOne({ email });
+                if (emailExists) return ResponseService.error(res, "Email already in use", 400);
+            }
+
+            const updateData = { name, email, phone, role, third_party_username };
+            if (password) {
+                updateData.password = await bcrypt.hash(password, 10);
+            }
+
+            const updatedUser = await User.findOneAndUpdate(
+                { id: id },
+                { $set: updateData },
+                { new: true }
+            ).select("-password");
+
+            return ResponseService.success(res, "User updated successfully", { user: updatedUser });
+        } catch (error) {
+            next(error);
+        }
+    }
+
+    // Delete User
+    async deleteUser(req, res, next) {
+        try {
+            const { id } = req.params;
+            const user = await User.findOneAndDelete({ id: id });
+
+            if (!user) {
+                return ResponseService.error(res, "User not found", 404);
+            }
+
+            return ResponseService.success(res, "User deleted successfully");
+        } catch (error) {
+            next(error);
+        }
+    }
 
     //fetchAllLabels method
     async fetchAllLabels(req, res, next) {
@@ -49,8 +186,6 @@ class UserController {
             next(error);
         }
     }
-
-
 
 }
 

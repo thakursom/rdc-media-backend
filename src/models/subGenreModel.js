@@ -17,6 +17,10 @@ const SubGenreSchema = new mongoose.Schema(
             type: String,
             required: true
         },
+        description: {
+            type: String,
+            default: ""
+        },
         status: {
             type: Number,
             default: 1

@@ -12,6 +12,10 @@ const GenreSchema = new mongoose.Schema(
             type: String,
             required: true
         },
+        description: {
+            type: String,
+            default: ""
+        },
         status: {
             type: Number,
             default: 1 // 1 = Active, 0 = Inactive

@@ -24,6 +24,192 @@ class ArtistController {
 
     async createArtist(req, res) {
         try {
+            const {
+                name, email, sound_cloud, twitter, facebook,
+                instagram, youtube, website, brandcamp,
+                is_on_spotify, spotify_link, is_on_apple, apple_link,
+                artist_image, artist_image_url, apple_image, youtube_image_url,
+                youtube_link, facebook_profile_id, instagram_profile_id, isrc
+            } = req.body;
+
+            if (!name) {
+                return res.status(400).json({
+                    success: false,
+                    message: "Artist name is required"
+                });
+            }
+
+            const id = await getNextId(Artist);
+
+            const artistData = {
+                id,
+                created_by: req.user?.userId || null,
+                name,
+                email,
+                sound_cloud,
+                twitter,
+                facebook,
+                instagram,
+                youtube,
+                website,
+                brandcamp,
+                is_on_spotify: Number(is_on_spotify) || 0,
+                spotify_link,
+                is_on_apple: Number(is_on_apple) || 0,
+                apple_link,
+                artist_image,
+                artist_image_url,
+                apple_image,
+                youtube_image_url,
+                youtube_link,
+                facebook_profile_id,
+                instagram_profile_id,
+                isrc
+            };
+
+            const artist = await Artist.create(artistData);
+
+            return res.status(201).json({
+                success: true,
+                message: "Artist created successfully",
+                data: artist
+            });
+
+        } catch (err) {
+            console.error("Artist create error:", err);
+            return res.status(500).json({
+                success: false,
+                message: "Server error",
+                error: err.message
+            });
+        }
+    }
+
+    async getArtists(req, res) {
+        try {
+            const page = parseInt(req.query.page) || 1;
+            const limit = parseInt(req.query.limit) || 10;
+            const skip = (page - 1) * limit;
+            const search = req.query.search || "";
+
+            const query = {};
+            if (search) {
+                query.$or = [
+                    { name: { $regex: search, $options: "i" } },
+                    { email: { $regex: search, $options: "i" } }
+                ];
+            }
+
+            const totalDocs = await Artist.countDocuments(query);
+            const artists = await Artist.find(query)
+                .sort({ createdAt: -1 })
+                .skip(skip)
+                .limit(limit);
+
+            return res.status(200).json({
+                success: true,
+                data: {
+                    artists,
+                    pagination: {
+                        totalDocs,
+                        totalPages: Math.ceil(totalDocs / limit),
+                        currentPage: page,
+                        limit
+                    }
+                }
+            });
+
+        } catch (err) {
+            console.error("Get artists error:", err);
+            return res.status(500).json({
+                success: false,
+                message: "Server error"
+            });
+        }
+    }
+
+    async getArtistById(req, res) {
+        try {
+            const { id } = req.params;
+            const artist = await Artist.findOne({ id: Number(id) });
+
+            if (!artist) {
+                return res.status(404).json({
+                    success: false,
+                    message: "Artist not found"
+                });
+            }
+
+            return res.status(200).json({
+                success: true,
+                data: artist
+            });
+        } catch (err) {
+            console.error("Get artist error:", err);
+            return res.status(500).json({
+                success: false,
+                message: "Server error"
+            });
+        }
+    }
+
+    async updateArtist(req, res) {
+        try {
+            const { id } = req.params;
+            const updatedArtist = await Artist.findOneAndUpdate(
+                { id: Number(id) },
+                req.body,
+                { new: true }
+            );
+
+            if (!updatedArtist) {
+                return res.status(404).json({
+                    success: false,
+                    message: "Artist not found"
+                });
+            }
+
+            return res.status(200).json({
+                success: true,
+                message: "Artist updated successfully",
+                data: updatedArtist
+            });
+        } catch (err) {
+            console.error("Update artist error:", err);
+            return res.status(500).json({
+                success: false,
+                message: "Server error"
+            });
+        }
+    }
+
+    async deleteArtist(req, res) {
+        try {
+            const { id } = req.params;
+            const deletedArtist = await Artist.findOneAndDelete({ id: Number(id) });
+
+            if (!deletedArtist) {
+                return res.status(404).json({
+                    success: false,
+                    message: "Artist not found"
+                });
+            }
+
+            return res.status(200).json({
+                success: true,
+                message: "Artist deleted successfully"
+            });
+        } catch (err) {
+            console.error("Delete artist error:", err);
+            return res.status(500).json({
+                success: false,
+                message: "Server error"
+            });
+        }
+    }
+
+    async createReleaseArtist(req, res) {
+        try {
 
             const { name } = req.body;
 
@@ -38,7 +224,7 @@ class ArtistController {
 
             const artistData = {
                 id: artistId,
-                created_by: req.user?.id || null,
+                created_by: req.user?.userId || null,
                 name,
                 email: generateEmail(name),
 
@@ -86,7 +272,7 @@ class ArtistController {
         }
     }
 
-    async getArtists(req, res) {
+    async getReleaseArtists(req, res) {
         try {
 
 
@@ -112,7 +298,7 @@ class ArtistController {
         }
     }
 
-    async getArtistById(req, res) {
+    async getReleaseArtistById(req, res) {
         try {
             const { id } = req.params;
 
@@ -140,8 +326,6 @@ class ArtistController {
             });
         }
     }
-
-
 }
 
 module.exports = new ArtistController();
