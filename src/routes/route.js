@@ -56,6 +56,8 @@ router.delete("/delete-genre/:id", authMiddleware, genreController.deleteGenre);
 router.post("/create-subgenre", authMiddleware, genreController.createSubGenre);
 router.put("/update-subgenre/:id", authMiddleware, genreController.updateSubGenre);
 router.delete("/delete-subgenre/:id", authMiddleware, genreController.deleteSubGenre);
+router.get("/release-genres", authMiddleware, genreController.getReleaseGenres);
+router.get("/release-subgenres", authMiddleware, genreController.getReleaseSubGenres);
 
 // Language Apis
 router.get("/languages", authMiddleware, languageController.getLanguages);
@@ -66,6 +68,7 @@ router.get("/dsps", authMiddleware, dspController.getDSPs);
 router.post("/create-dsp", authMiddleware, dspController.createDSP);
 router.put("/update-dsp/:id", authMiddleware, dspController.updateDSP);
 router.delete("/delete-dsp/:id", authMiddleware, dspController.deleteDSP);
+router.get("/release-dsps", authMiddleware, dspController.getReleaseDSPs);
 
 
 module.exports = router;

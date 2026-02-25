@@ -7,6 +7,65 @@ async function getNextId(model) {
 }
 
 class GenreController {
+
+    // Get release genres 
+    async getReleaseGenres(req, res) {
+        try {
+            const page = parseInt(req.query.page) || 1;
+            const limit = parseInt(req.query.limit) || 10;
+            const skip = (page - 1) * limit;
+
+            const totalDocs = await Genre.countDocuments({ status: 1 });
+            const genres = await Genre.find({ status: 1 }).sort({ title: 1 }).skip(skip).limit(limit);
+
+            return res.status(200).json({
+                success: true,
+                data: genres,
+                pagination: {
+                    totalDocs,
+                    totalPages: Math.ceil(totalDocs / limit),
+                    currentPage: page,
+                    limit
+                }
+            });
+        } catch (error) {
+            console.error("Error fetching genres:", error);
+            return res.status(500).json({ success: false, message: "Server Error" });
+        }
+    }
+
+    // Get release subgenres 
+    async getReleaseSubGenres(req, res) {
+        try {
+            const { genre_id } = req.query;
+            const page = parseInt(req.query.page) || 1;
+            const limit = parseInt(req.query.limit) || 10;
+            const skip = (page - 1) * limit;
+
+            const query = { status: 1 };
+            if (genre_id) {
+                query.genre_id = Number(genre_id);
+            }
+
+            const totalDocs = await SubGenre.countDocuments(query);
+            const subGenres = await SubGenre.find(query).sort({ title: 1 }).skip(skip).limit(limit);
+
+            return res.status(200).json({
+                success: true,
+                data: subGenres,
+                pagination: {
+                    totalDocs,
+                    totalPages: Math.ceil(totalDocs / limit),
+                    currentPage: page,
+                    limit
+                }
+            });
+        } catch (error) {
+            console.error("Error fetching subgenres:", error);
+            return res.status(500).json({ success: false, message: "Server Error" });
+        }
+    }
+
     // Get all genres
     async getGenres(req, res) {
         try {
