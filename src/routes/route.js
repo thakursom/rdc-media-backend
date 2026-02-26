@@ -6,11 +6,12 @@ const releaseController = require("../controllers/releaseController");
 const artistController = require("../controllers/artistController");
 const userController = require("../controllers/userController");
 
-
 const genreController = require("../controllers/genreController");
 const languageController = require("../controllers/languageController");
 const dspController = require("../controllers/dspController");
 const fileController = require("../controllers/fileController");
+const countryController = require("../controllers/countryController");
+const upcController = require("../controllers/upcController");
 
 
 //Auth Apis
@@ -70,5 +71,18 @@ router.put("/update-dsp/:id", authMiddleware, dspController.updateDSP);
 router.delete("/delete-dsp/:id", authMiddleware, dspController.deleteDSP);
 router.get("/release-dsps", authMiddleware, dspController.getReleaseDSPs);
 
+// Country Apis
+router.get("/countries", authMiddleware, countryController.getCountries);
+router.post("/create-country", authMiddleware, countryController.createCountry);
+router.put("/update-country/:id", authMiddleware, countryController.updateCountry);
+router.delete("/delete-country/:id", authMiddleware, countryController.deleteCountry);
+
+// UPC Apis
+router.get("/upcs", authMiddleware, upcController.getUPCs);
+router.post("/upload-upc", authMiddleware, upload.single("file"), upcController.uploadUPC);
+router.put("/update-upc-status/:id", authMiddleware, upcController.updateUPCStatus);
+router.put("/update-upc/:id", authMiddleware, upcController.updateUPC);
+router.delete("/delete-upc/:id", authMiddleware, upcController.deleteUPC);
+router.get("/export-upc", authMiddleware, upcController.exportUPC);
 
 module.exports = router;

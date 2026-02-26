@@ -74,7 +74,7 @@ class GenreController {
             const skip = (page - 1) * limit;
 
             const totalDocs = await Genre.countDocuments();
-            const genres = await Genre.find().sort({ title: 1 }).skip(skip).limit(limit);
+            const genres = await Genre.find().sort({ createdAt: -1 }).skip(skip).limit(limit);
 
             return res.status(200).json({
                 success: true,
@@ -106,7 +106,7 @@ class GenreController {
             }
 
             const totalDocs = await SubGenre.countDocuments(query);
-            const subGenres = await SubGenre.find(query).sort({ title: 1 }).skip(skip).limit(limit);
+            const subGenres = await SubGenre.find(query).sort({ createdAt: -1 }).skip(skip).limit(limit);
 
             return res.status(200).json({
                 success: true,

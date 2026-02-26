@@ -29,7 +29,7 @@ class DSPController {
             const skip = (page - 1) * limit;
 
             const totalDocs = await DSP.countDocuments();
-            const dsps = await DSP.find().sort({ name: 1 }).skip(skip).limit(limit);
+            const dsps = await DSP.find().sort({ createdAt: -1 }).skip(skip).limit(limit);
 
             res.status(200).json({
                 success: true,
