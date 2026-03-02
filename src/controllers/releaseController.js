@@ -147,7 +147,7 @@ class ReleaseController {
                 p_line_year: data.productionYear || null,
                 c_line: data.copyrightHolder || null,
                 c_line_year: data.copyrightYear || null,
-                isrc: isrcNumber || null,
+                isrc: null,
                 upc_number: upcNumber || null,
                 cat_number: data.catalogueNo || null,
                 parental_warning_type: data.parentalWarning || '0',
@@ -169,11 +169,10 @@ class ReleaseController {
                 let audioFileIndex = 0;
                 let lyricsFileIndex = 0;
 
-                const trackPromises = data.tracks.map(async (track, index) => {
+                for (let index = 0; index < data.tracks.length; index++) {
+                    const track = data.tracks[index];
                     try {
                         const trackId = await getNextId(Track);
-
-
 
                         let audioPath = null;
                         if (track.hasNewAudioFile && trackFiles[audioFileIndex]) {
@@ -187,12 +186,16 @@ class ReleaseController {
                             lyricsFileIndex++;
                         }
 
-
                         const artistsArray = (Array.isArray(track.artists) && track.artists.length > 0)
                             ? track.artists
                             : data.releaseArtists || [];
 
-                        return await Track.create({
+                        let trackIsrc = track.isrc;
+                        if (!trackIsrc) {
+                            trackIsrc = await generateNextCode(Track, "isrc_number");
+                        }
+
+                        const newTrack = await Track.create({
                             id: trackId,
                             release_id: releaseId,
                             title: track.title,
@@ -206,8 +209,8 @@ class ReleaseController {
                             display_artist: artistsArray,
                             feature_artist: artistsArray,
                             explicit: track.explicit,
-                            isrc_number: track.isrc || null,
-                            have_isrc: track.isrc ? 1 : 0,
+                            isrc_number: trackIsrc || null,
+                            have_isrc: trackIsrc ? 1 : 0,
                             original_audio_name: track.name,
                             publisher: data.label || null,
                             producer: track.producer || null,
@@ -217,13 +220,13 @@ class ReleaseController {
                             mix_version: track.version || null,
                         });
 
+                        savedTracks.push(newTrack);
+
                     } catch (err) {
                         console.error("Track creation failed:", err);
                         throw err;
                     }
-                });
-
-                savedTracks = await Promise.all(trackPromises);
+                }
             }
 
             return res.status(201).json({

@@ -73,6 +73,11 @@ class UserController {
             const hashedPassword = await bcrypt.hash(password, 10);
             const id = await getNextId(User);
 
+            let parent_id = null;
+            if (role === "Sub User") {
+                parent_id = req.user?.userId;
+            }
+
             const newUser = new User({
                 id,
                 name,
@@ -80,7 +85,8 @@ class UserController {
                 phone,
                 password: hashedPassword,
                 role,
-                third_party_username
+                third_party_username,
+                parent_id
             });
 
             await newUser.save();

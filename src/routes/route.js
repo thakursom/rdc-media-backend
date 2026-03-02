@@ -12,7 +12,7 @@ const dspController = require("../controllers/dspController");
 const fileController = require("../controllers/fileController");
 const countryController = require("../controllers/countryController");
 const upcController = require("../controllers/upcController");
-
+const labelController = require("../controllers/labelController");
 
 //Auth Apis
 router.post("/login", authController.login);
@@ -76,6 +76,12 @@ router.get("/countries", authMiddleware, countryController.getCountries);
 router.post("/create-country", authMiddleware, countryController.createCountry);
 router.put("/update-country/:id", authMiddleware, countryController.updateCountry);
 router.delete("/delete-country/:id", authMiddleware, countryController.deleteCountry);
+
+// Label Apis (New Dedicated Table)
+router.get("/all-labels", authMiddleware, labelController.getLabels);
+router.post("/create-label", authMiddleware, labelController.createLabel);
+router.put("/update-label/:id", authMiddleware, labelController.updateLabel);
+router.delete("/delete-label/:id", authMiddleware, labelController.deleteLabel);
 
 // UPC Apis
 router.get("/upcs", authMiddleware, upcController.getUPCs);
