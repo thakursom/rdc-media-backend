@@ -28,6 +28,7 @@ router.post("/create-release", authMiddleware, upload.fields([
     { name: 'trackFiles', maxCount: 20 },
     { name: 'lyricsFiles', maxCount: 20 } // In case we support multiple lyrics files
 ]), releaseController.createRelease);
+router.get("/releases", authMiddleware, releaseController.getReleases);
 
 //Artist Apis
 router.post("/create-artist", authMiddleware, artistController.createArtist);

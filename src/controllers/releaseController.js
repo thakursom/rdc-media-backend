@@ -1,5 +1,6 @@
 const Release = require("../models/releaseModel");
 const Track = require("../models/trackModel");
+const User = require("../models/userModel");
 const Language = require("../models/languageModel");
 const Joi = require("joi");
 
@@ -34,9 +35,6 @@ async function generateNextCode(model, field) {
 
     return `${prefix}${nextNumber}`;
 }
-
-
-
 
 class ReleaseController {
 
@@ -94,9 +92,8 @@ class ReleaseController {
             const trackFiles = files['trackFiles'] || [];
             const lyricsFiles = files['lyricsFiles'] || [];
 
-            // Construct Base URL
-            const baseUrl = process.env.BASE_URL;
-            const getFileUrl = (filename) => filename ? `${baseUrl}/public/uploads/${filename}` : null;
+            // Construct Relative Path Helper
+            const getFileUrl = (filename) => filename ? `/public/uploads/${filename}` : null;
 
 
             let upcNumber = data.upc;
@@ -245,7 +242,160 @@ class ReleaseController {
         }
     }
 
+    // getReleases method
+    async getReleases(req, res) {
+        try {
+            const page = parseInt(req.query.page) || 1;
+            const limit = parseInt(req.query.limit) || 10;
+            const search = req.query.search || "";
+            const skip = (page - 1) * limit;
 
+            // Determine Base URL dynamically from request
+            const host = req.get('host');
+            const protocol = req.protocol;
+            const dynamicBaseUrl = `${protocol}://${host}`;
+
+            let query = { deleted: 0 };
+
+            if (search) {
+                // Find labels matching the search term
+                const matchingLabels = await User.find({
+                    name: { $regex: search, $options: "i" },
+                    role: "Label"
+                }).select("id");
+
+                const labelIds = matchingLabels.map(l => l.id);
+
+                query.$or = [
+                    { title: { $regex: search, $options: "i" } },
+                    { display_artist: { $elemMatch: { $regex: search, $options: "i" } } },
+                    { label_id: { $in: labelIds } }
+                ];
+            }
+
+            const aggregation = [
+                { $match: query },
+                { $sort: { createdAt: -1 } },
+                { $skip: skip },
+                { $limit: limit },
+                // Join with Users (Labels)
+                {
+                    $lookup: {
+                        from: "users",
+                        localField: "label_id",
+                        foreignField: "id",
+                        as: "label_data"
+                    }
+                },
+                { $unwind: { path: "$label_data", preserveNullAndEmptyArrays: true } },
+                // Join with Tracks to get counts
+                {
+                    $lookup: {
+                        from: "tracks",
+                        localField: "id",
+                        foreignField: "release_id",
+                        as: "tracks"
+                    }
+                },
+                // Project fields to match frontend expectations
+                {
+                    $project: {
+                        _id: 1,
+                        id: 1,
+                        release_title: "$title",
+                        release_type: {
+                            $cond: { if: { $eq: ["$release_type", "album"] }, then: 2, else: 1 }
+                        },
+                        status: {
+                            $cond: { if: { $eq: ["$status", "approved"] }, then: 1, else: 0 }
+                        },
+                        primary_artist: {
+                            name: { $arrayElemAt: ["$display_artist", 0] }
+                        },
+                        label: {
+                            name: "$label_data.name"
+                        },
+                        artwork_path: {
+                            $cond: {
+                                if: { $and: ["$artwork_path", { $ne: ["$artwork_path", null] }] },
+                                then: {
+                                    $concat: [
+                                        dynamicBaseUrl || "",
+                                        {
+                                            $cond: {
+                                                if: { $regexMatch: { input: "$artwork_path", regex: /^http/ } },
+                                                then: { $substrCP: ["$artwork_path", { $indexOfCP: ["$artwork_path", "/public/"] }, 1000] },
+                                                else: "$artwork_path"
+                                            }
+                                        }
+                                    ]
+                                },
+                                else: null
+                            }
+                        },
+                        release_date: 1,
+                        tracks: {
+                            $map: {
+                                input: "$tracks",
+                                as: "t",
+                                in: {
+                                    id: "$$t.id",
+                                    title: "$$t.title",
+                                    audio_path: {
+                                        $cond: {
+                                            if: { $and: ["$$t.audio_path", { $ne: ["$$t.audio_path", null] }] },
+                                            then: {
+                                                $concat: [
+                                                    dynamicBaseUrl || "",
+                                                    {
+                                                        $cond: {
+                                                            if: { $regexMatch: { input: "$$t.audio_path", regex: /^http/ } },
+                                                            then: { $substrCP: ["$$t.audio_path", { $indexOfCP: ["$$t.audio_path", "/public/"] }, 1000] },
+                                                            else: "$$t.audio_path"
+                                                        }
+                                                    }
+                                                ]
+                                            },
+                                            else: null
+                                        }
+                                    },
+                                    isrc: "$$t.isrc_number",
+                                    duration: "$$t.duration"
+                                }
+                            }
+                        },
+                        upc: "$upc_number",
+                        catalogue_number: "$cat_number",
+                        territories: "$store_ids", // Using store_ids as placeholder if territories field is missing
+                        stores: "$store_ids"
+                    }
+                }
+            ];
+
+            const releases = await Release.aggregate(aggregation);
+            const totalDocs = await Release.countDocuments(query);
+
+            return res.status(200).json({
+                success: true,
+                data: {
+                    releases,
+                    pagination: {
+                        totalDocs,
+                        totalPages: Math.ceil(totalDocs / limit),
+                        currentPage: page,
+                        limit
+                    }
+                }
+            });
+        } catch (err) {
+            console.error('Error fetching releases:', err);
+            return res.status(500).json({
+                success: false,
+                message: 'Server error while fetching releases',
+                error: err.message,
+            });
+        }
+    }
 }
 
 module.exports = new ReleaseController();
