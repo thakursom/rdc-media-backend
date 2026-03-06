@@ -257,8 +257,8 @@ class ReleaseController {
 
             let query = { deleted: 0 };
 
+            // Handle Search
             if (search) {
-                // Find labels matching the search term
                 const matchingLabels = await User.find({
                     name: { $regex: search, $options: "i" },
                     role: "Label"
@@ -273,9 +273,65 @@ class ReleaseController {
                 ];
             }
 
+            // Handle Advanced Filters
+            const { releaseTypes, statuses, label, artist, user, periodFrom, periodTo, sources, sortBy, sortOrder } = req.query;
+
+            if (releaseTypes) {
+                const types = Array.isArray(releaseTypes) ? releaseTypes : releaseTypes.split(',');
+                query.release_type = { $in: types };
+            }
+
+            if (statuses) {
+                const statusList = Array.isArray(statuses) ? statuses : statuses.split(',');
+                query.status = { $in: statusList };
+            }
+
+            if (label) {
+                const matchingLabels = await User.find({
+                    name: { $regex: label, $options: "i" },
+                    role: "Label"
+                }).select("id");
+                const labelIds = matchingLabels.map(l => l.id);
+                query.label_id = { $in: labelIds };
+            }
+
+            if (artist) {
+                query.display_artist = { $elemMatch: { $regex: artist, $options: "i" } };
+            }
+
+            if (user) {
+                const matchingUsers = await User.find({
+                    name: { $regex: user, $options: "i" }
+                }).select("id");
+                const userIds = matchingUsers.map(u => u.id);
+                query.created_by = { $in: userIds };
+            }
+
+            if (periodFrom || periodTo) {
+                query.release_date = {};
+                if (periodFrom) query.release_date.$gte = new Date(periodFrom);
+                if (periodTo) query.release_date.$lte = new Date(periodTo);
+            }
+
+            if (sources) {
+                const sourceList = Array.isArray(sources) ? sources : sources.split(',');
+                query.provided_by = { $in: sourceList };
+            }
+
+            // Determine Sort
+            let sortStage = { createdAt: -1 };
+            if (sortBy) {
+                const order = sortOrder === 'asc' ? 1 : -1;
+                if (sortBy === 'release_title') sortStage = { title: order };
+                else if (sortBy === 'artist') sortStage = { display_artist: order };
+                else if (sortBy === 'label') sortStage = { label_id: order };
+                else if (sortBy === 'creation_date') sortStage = { createdAt: order };
+                else if (sortBy === 'release_date') sortStage = { release_date: order };
+            }
+
             const aggregation = [
                 { $match: query },
-                { $sort: { createdAt: -1 } },
+                { $sort: sortStage },
                 { $skip: skip },
                 { $limit: limit },
                 // Join with Users (Labels)
@@ -307,7 +363,11 @@ class ReleaseController {
                             $cond: { if: { $eq: ["$release_type", "album"] }, then: 2, else: 1 }
                         },
                         status: {
-                            $cond: { if: { $eq: ["$status", "approved"] }, then: 1, else: 0 }
+                            $cond: {
+                                if: { $or: [{ $eq: ["$status", "approved"] }, { $eq: ["$status", "1"] }] },
+                                then: 1,
+                                else: 0
+                            }
                         },
                         primary_artist: {
                             name: { $arrayElemAt: ["$display_artist", 0] }

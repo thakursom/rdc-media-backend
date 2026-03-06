@@ -13,6 +13,8 @@ const fileController = require("../controllers/fileController");
 const countryController = require("../controllers/countryController");
 const upcController = require("../controllers/upcController");
 const labelController = require("../controllers/labelController");
+const newsletterController = require("../controllers/newsletterController");
+const ticketController = require("../controllers/ticketController");
 
 //Auth Apis
 router.post("/login", authController.login);
@@ -91,5 +93,18 @@ router.put("/update-upc-status/:id", authMiddleware, upcController.updateUPCStat
 router.put("/update-upc/:id", authMiddleware, upcController.updateUPC);
 router.delete("/delete-upc/:id", authMiddleware, upcController.deleteUPC);
 router.get("/export-upc", authMiddleware, upcController.exportUPC);
+// Newsletter Apis
+router.get("/newsletters", authMiddleware, newsletterController.getNewsletters);
+router.post("/create-newsletter", authMiddleware, newsletterController.createNewsletter);
+router.get("/newsletter/:id", authMiddleware, newsletterController.getNewsletterById);
+router.put("/update-newsletter/:id", authMiddleware, newsletterController.updateNewsletter);
+router.delete("/delete-newsletter/:id", authMiddleware, newsletterController.deleteNewsletter);
+
+// Ticket Apis
+router.get("/tickets", authMiddleware, ticketController.getTickets);
+router.post("/create-ticket", authMiddleware, ticketController.createTicket);
+router.get("/ticket/:id", authMiddleware, ticketController.getTicketById);
+router.put("/update-ticket/:id", authMiddleware, ticketController.updateTicket);
+router.delete("/delete-ticket/:id", authMiddleware, ticketController.deleteTicket);
 
 module.exports = router;
