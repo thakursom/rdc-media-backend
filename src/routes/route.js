@@ -30,7 +30,14 @@ router.post("/create-release", authMiddleware, upload.fields([
     { name: 'trackFiles', maxCount: 20 },
     { name: 'lyricsFiles', maxCount: 20 } // In case we support multiple lyrics files
 ]), releaseController.createRelease);
+router.put("/update-release/:id", authMiddleware, upload.fields([
+    { name: 'artwork', maxCount: 1 },
+    { name: 'trackFiles', maxCount: 20 },
+    { name: 'lyricsFiles', maxCount: 20 }
+]), releaseController.updateRelease);
 router.get("/releases", authMiddleware, releaseController.getReleases);
+router.get("/releases/:id", authMiddleware, releaseController.getReleaseById);
+router.put("/update-release-status/:id", authMiddleware, releaseController.updateReleaseStatus);
 
 //Artist Apis
 router.post("/create-artist", authMiddleware, artistController.createArtist);

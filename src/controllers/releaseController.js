@@ -1,7 +1,10 @@
 const Release = require("../models/releaseModel");
 const Track = require("../models/trackModel");
 const User = require("../models/userModel");
+const Label = require("../models/labelModel");
 const Language = require("../models/languageModel");
+const Genre = require("../models/genreModel");
+const SubGenre = require("../models/subGenreModel");
 const Joi = require("joi");
 
 async function getNextId(model) {
@@ -131,6 +134,7 @@ class ReleaseController {
                 title: data.title || '',
                 lang: langCode,
                 content_lang: langName,
+                language_id: data.language || null,
                 display_artist: data.releaseArtists || [],
                 artists: '',
                 feature_artist: null,
@@ -140,6 +144,7 @@ class ReleaseController {
                 genre_id: safeNumber(data.primaryGenre),
                 subgenre_id: safeNumber(data.secondaryGenre),
                 release_date: data.releaseDate ? new Date(data.releaseDate) : null,
+                release_time: data.releaseTime || '00:00',
                 p_line: data.productionHolder || null,
                 p_line_year: data.productionYear || null,
                 c_line: data.copyrightHolder || null,
@@ -154,7 +159,14 @@ class ReleaseController {
                 artwork: data.artworkFile || null,
                 artwork_path: artworkFile ? getFileUrl(artworkFile.filename) : null,
                 created_by: req.user?.id || null,
+                is_various_artists: data.isVariousArtists ? 1 : 0,
+                is_first_release: data.isFirstRelease ? 1 : 0,
+                is_priority: data.priorityDistribution ? 1 : 0,
+                country_restrictions: data.countryRestrictions || 'No',
+                previously_released: data.previouslyReleased || 'No',
+                future_stores: data.futureStores || 'Yes',
                 status: 'processing',
+                create_type: data.create_type || null,
                 created_at: new Date(),
                 updated_at: new Date()
             };
@@ -274,11 +286,16 @@ class ReleaseController {
             }
 
             // Handle Advanced Filters
-            const { releaseTypes, statuses, label, artist, user, periodFrom, periodTo, sources, sortBy, sortOrder } = req.query;
+            const { releaseTypes, statuses, create_type, label, artist, user, periodFrom, periodTo, sources, sortBy, sortOrder } = req.query;
 
             if (releaseTypes) {
                 const types = Array.isArray(releaseTypes) ? releaseTypes : releaseTypes.split(',');
                 query.release_type = { $in: types };
+            }
+
+            if (create_type) {
+                const typeList = Array.isArray(create_type) ? create_type : create_type.split(',');
+                query.create_type = { $in: typeList };
             }
 
             if (statuses) {
@@ -287,9 +304,8 @@ class ReleaseController {
             }
 
             if (label) {
-                const matchingLabels = await User.find({
-                    name: { $regex: label, $options: "i" },
-                    role: "Label"
+                const matchingLabels = await Label.find({
+                    name: { $regex: label, $options: "i" }
                 }).select("id");
                 const labelIds = matchingLabels.map(l => l.id);
                 query.label_id = { $in: labelIds };
@@ -334,16 +350,20 @@ class ReleaseController {
                 { $sort: sortStage },
                 { $skip: skip },
                 { $limit: limit },
-                // Join with Users (Labels)
+                // Join with Labels
                 {
                     $lookup: {
-                        from: "users",
+                        from: "labels",
                         localField: "label_id",
                         foreignField: "id",
                         as: "label_data"
                     }
                 },
-                { $unwind: { path: "$label_data", preserveNullAndEmptyArrays: true } },
+                {
+                    $addFields: {
+                        label_data: { $arrayElemAt: ["$label_data", 0] }
+                    }
+                },
                 // Join with Tracks to get counts
                 {
                     $lookup: {
@@ -369,6 +389,7 @@ class ReleaseController {
                                 else: 0
                             }
                         },
+                        create_type: 1,
                         primary_artist: {
                             name: { $arrayElemAt: ["$display_artist", 0] }
                         },
@@ -429,7 +450,19 @@ class ReleaseController {
                         territories: "$store_ids", // Using store_ids as placeholder if territories field is missing
                         stores: "$store_ids"
                     }
-                }
+                },
+                // Final safeguard: ensure uniqueness by release id
+                {
+                    $group: {
+                        _id: "$id",
+                        doc: { $first: "$$ROOT" }
+                    }
+                },
+                {
+                    $replaceRoot: { newRoot: "$doc" }
+                },
+                // Re-apply sort AFTER grouping because $group does not preserve order
+                { $sort: sortStage }
             ];
 
             const releases = await Release.aggregate(aggregation);
@@ -452,6 +485,457 @@ class ReleaseController {
             return res.status(500).json({
                 success: false,
                 message: 'Server error while fetching releases',
+                error: err.message,
+            });
+        }
+    }
+
+    // getReleaseById method
+    async getReleaseById(req, res) {
+        try {
+            const { id } = req.params;
+
+            // Determine Base URL dynamically from request
+            const host = req.get('host');
+            const protocol = req.protocol;
+            const dynamicBaseUrl = `${protocol}://${host}`;
+
+            const aggregation = [
+                { $match: { id: parseInt(id), deleted: 0 } },
+                // Join with Users (Labels)
+                {
+                    $lookup: {
+                        from: "labels",
+                        localField: "label_id",
+                        foreignField: "id",
+                        as: "label_data"
+                    }
+                },
+                {
+                    $addFields: {
+                        label_data: { $arrayElemAt: ["$label_data", 0] }
+                    }
+                },
+                // Join with Genres
+                {
+                    $lookup: {
+                        from: "genres",
+                        localField: "genre_id",
+                        foreignField: "id",
+                        as: "genre_info"
+                    }
+                },
+                {
+                    $addFields: {
+                        genre_info: { $arrayElemAt: ["$genre_info", 0] }
+                    }
+                },
+                // Join with SubGenres
+                {
+                    $lookup: {
+                        from: "subgenres",
+                        localField: "subgenre_id",
+                        foreignField: "id",
+                        as: "subgenre_info"
+                    }
+                },
+                {
+                    $addFields: {
+                        subgenre_info: { $arrayElemAt: ["$subgenre_info", 0] }
+                    }
+                },
+                // Join with Tracks
+                {
+                    $lookup: {
+                        from: "tracks",
+                        localField: "id",
+                        foreignField: "release_id",
+                        as: "tracks"
+                    }
+                },
+                // Project fields to match frontend expectations
+                {
+                    $lookup: {
+                        from: "languages",
+                        let: { r_lang: "$lang", r_id: "$language_id" },
+                        pipeline: [
+                            {
+                                $match: {
+                                    $expr: {
+                                        $and: [
+                                            { $eq: ["$status", 1] },
+                                            {
+                                                $or: [
+                                                    { $and: [{ $ne: ["$$r_lang", null] }, { $eq: ["$code", "$$r_lang"] }] },
+                                                    { $and: [{ $ne: ["$$r_id", null] }, { $eq: ["$id", "$$r_id"] }] }
+                                                ]
+                                            }
+                                        ]
+                                    }
+                                }
+                            }
+                        ],
+                        as: "lang_info"
+                    }
+                },
+                {
+                    $addFields: {
+                        language_id: {
+                            $ifNull: ["$language_id", { $arrayElemAt: ["$lang_info.id", 0] }]
+                        }
+                    }
+                },
+                {
+                    $project: {
+                        _id: 1,
+                        id: 1,
+                        title: 1,
+                        release_title: "$title",
+                        release_type: 1,
+                        status: 1,
+                        create_type: 1,
+                        display_artist: 1,
+                        primary_artist: {
+                            name: { $arrayElemAt: ["$display_artist", 0] }
+                        },
+                        label_id: 1,
+                        label: {
+                            name: "$label_data.name"
+                        },
+                        artwork_path: {
+                            $cond: {
+                                if: { $and: ["$artwork_path", { $ne: ["$artwork_path", null] }] },
+                                then: {
+                                    $concat: [
+                                        dynamicBaseUrl || "",
+                                        {
+                                            $cond: {
+                                                if: { $regexMatch: { input: "$artwork_path", regex: /^http/ } },
+                                                then: { $substrCP: ["$artwork_path", { $indexOfCP: ["$artwork_path", "/public/"] }, 1000] },
+                                                else: "$artwork_path"
+                                            }
+                                        }
+                                    ]
+                                },
+                                else: null
+                            }
+                        },
+                        release_date: 1,
+                        release_time: 1,
+                        tracks: {
+                            $map: {
+                                input: "$tracks",
+                                as: "t",
+                                in: {
+                                    id: "$$t.id",
+                                    title: "$$t.title",
+                                    mix_version: "$$t.mix_version",
+                                    position: "$$t.position",
+                                    audio_path: {
+                                        $cond: {
+                                            if: { $and: ["$$t.audio_path", { $ne: ["$$t.audio_path", null] }] },
+                                            then: {
+                                                $concat: [
+                                                    dynamicBaseUrl || "",
+                                                    {
+                                                        $cond: {
+                                                            if: { $regexMatch: { input: "$$t.audio_path", regex: /^http/ } },
+                                                            then: { $substrCP: ["$$t.audio_path", { $indexOfCP: ["$$t.audio_path", "/public/"] }, 1000] },
+                                                            else: "$$t.audio_path"
+                                                        }
+                                                    }
+                                                ]
+                                            },
+                                            else: null
+                                        }
+                                    },
+                                    isrc_number: "$$t.isrc_number",
+                                    duration: "$$t.duration",
+                                    remixer: "$$t.remixer",
+                                    composer: "$$t.composer",
+                                    producer: "$$t.producer",
+                                    lyricist: "$$t.lyricist",
+                                    lyrics_text: "$$t.lyrics_text",
+                                    explicit: "$$t.explicit",
+                                    display_artist: "$$t.display_artist"
+                                }
+                            }
+                        },
+                        upc_number: 1,
+                        upc: "$upc_number",
+                        cat_number: 1,
+                        catalogue_number: "$cat_number",
+                        p_line: 1,
+                        p_line_year: 1,
+                        c_line: 1,
+                        c_line_year: 1,
+                        lang: 1,
+                        content_lang: 1,
+                        language_id: 1,
+                        genre_id: 1,
+                        subgenre_id: 1,
+                        store_ids: 1,
+                        parental_warning_type: 1,
+                        description: 1,
+                        pricing: 1,
+                        is_various_artists: 1,
+                        is_various: "$is_various_artists",
+                        is_first_release: 1,
+                        is_first: "$is_first_release",
+                        is_priority: 1,
+                        country_restrictions: 1,
+                        previously_released: 1,
+                        future_stores: 1,
+                        release_date: 1,
+                        release_time: 1,
+                        genre_name: "$genre_info.title",
+                        subgenre_name: "$subgenre_info.title",
+                        language_name: { $arrayElemAt: ["$lang_info.name", 0] }
+                    }
+                }
+            ];
+
+            const releases = await Release.aggregate(aggregation);
+
+            if (!releases || releases.length === 0) {
+                return res.status(404).json({ success: false, message: "Release not found" });
+            }
+
+            return res.status(200).json({ success: true, data: releases[0] });
+        } catch (error) {
+            console.error('Error fetching single release:', error);
+            return res.status(500).json({ success: false, message: "Server error", error: error.message });
+        }
+    }
+
+    // updateReleaseStatus method
+    async updateReleaseStatus(req, res) {
+        try {
+            const { id } = req.params;
+            const { status, create_type, admin_remarks } = req.body;
+
+            const updateData = {};
+            if (status !== undefined) updateData.status = status;
+            if (create_type !== undefined) updateData.create_type = create_type;
+            if (admin_remarks !== undefined) updateData.admin_remarks = admin_remarks;
+
+            const release = await Release.findOneAndUpdate(
+                { id: id },
+                { $set: updateData },
+                { new: true }
+            );
+
+            if (!release) {
+                return res.status(404).json({ success: false, message: "Release not found" });
+            }
+
+            return res.status(200).json({ success: true, message: "Status updated successfully", data: release });
+        } catch (error) {
+            return res.status(500).json({ success: false, message: "Server error", error: error.message });
+        }
+    }
+    // updateRelease method
+    async updateRelease(req, res) {
+        try {
+            const { id } = req.params;
+            const releaseId = parseInt(id);
+
+            let data = req.body;
+            if (req.body.data) {
+                try {
+                    data = JSON.parse(req.body.data);
+                } catch (e) {
+                    return res.status(400).send({ status: false, message: "Invalid JSON data format" });
+                }
+            }
+
+            const existingRelease = await Release.findOne({ id: releaseId });
+            if (!existingRelease) {
+                return res.status(404).json({ success: false, message: "Release not found" });
+            }
+
+            // Extract Files
+            const files = req.files || {};
+            const artworkFile = files['artwork'] ? files['artwork'][0] : null;
+            const trackFiles = files['trackFiles'] || [];
+            const lyricsFiles = files['lyricsFiles'] || [];
+
+            const getFileUrl = (filename) => filename ? `/public/uploads/${filename}` : null;
+
+            let upcNumber = data.upcMode === "Auto" ? existingRelease.upc_number : data.upc;
+            let isrcNumber = data.isrcMode === "Auto" ? existingRelease.isrc : data.isrc;
+
+            const safeNumber = (val) => {
+                if (val == null || val === '' || val === undefined) return null;
+                const num = Number(val);
+                return isNaN(num) ? null : num;
+            };
+
+            let langCode = existingRelease.lang;
+            let langName = existingRelease.content_lang;
+            if (data.language && data.language != existingRelease.language_id) {
+                const langDoc = await Language.findOne({ id: data.language });
+                if (langDoc) {
+                    langCode = langDoc.code;
+                    langName = langDoc.name;
+                }
+            }
+
+            const updateData = {
+                title: data.title || existingRelease.title,
+                lang: langCode,
+                content_lang: langName,
+                language_id: data.language || existingRelease.language_id,
+                display_artist: data.releaseArtists || existingRelease.display_artist,
+                release_type: data.releaseType || existingRelease.release_type,
+                label_id: data.label || existingRelease.label_id,
+                genre_id: safeNumber(data.primaryGenre),
+                subgenre_id: safeNumber(data.secondaryGenre),
+                release_date: data.releaseDate ? new Date(data.releaseDate) : existingRelease.release_date,
+                release_time: data.releaseTime || existingRelease.release_time,
+                p_line: data.productionHolder || existingRelease.p_line,
+                p_line_year: data.productionYear || existingRelease.p_line_year,
+                c_line: data.copyrightHolder || existingRelease.c_line,
+                c_line_year: data.copyrightYear || existingRelease.c_line_year,
+                upc_number: upcNumber || existingRelease.upc_number,
+                cat_number: data.catalogueNo || existingRelease.cat_number,
+                parental_warning_type: data.parentalWarning || existingRelease.parental_warning_type,
+                description: data.description || existingRelease.description,
+                pricing: data.pricing || existingRelease.pricing,
+                store_ids: data.selectedStores || existingRelease.store_ids,
+                artwork_path: artworkFile ? getFileUrl(artworkFile.filename) : existingRelease.artwork_path,
+                is_various_artists: data.isVariousArtists !== undefined ? (data.isVariousArtists ? 1 : 0) : existingRelease.is_various_artists,
+                is_first_release: data.isFirstRelease !== undefined ? (data.isFirstRelease ? 1 : 0) : existingRelease.is_first_release,
+                is_priority: data.priorityDistribution !== undefined ? (data.priorityDistribution ? 1 : 0) : existingRelease.is_priority,
+                country_restrictions: data.countryRestrictions || existingRelease.country_restrictions,
+                previously_released: data.previouslyReleased || existingRelease.previously_released,
+                future_stores: data.futureStores || existingRelease.future_stores,
+                create_type: data.create_type || existingRelease.create_type,
+                updated_at: new Date()
+            };
+
+            await Release.findOneAndUpdate({ id: releaseId }, { $set: updateData });
+
+            const oldTracks = await Track.find({ release_id: releaseId });
+            let savedTracks = [];
+
+            if (data.tracks && data.tracks.length > 0) {
+                let audioFileIndex = 0;
+                let lyricsFileIndex = 0;
+                const newTrackIds = [];
+
+                for (let index = 0; index < data.tracks.length; index++) {
+                    const track = data.tracks[index];
+                    const isExistingDbTrack = typeof track.id === 'number';
+
+                    let audioPath = null;
+                    if (track.hasNewAudioFile && trackFiles[audioFileIndex]) {
+                        audioPath = getFileUrl(trackFiles[audioFileIndex].filename);
+                        audioFileIndex++;
+                    }
+
+                    let lyricsPath = null;
+                    if (track.hasNewLyricsFile && lyricsFiles[lyricsFileIndex]) {
+                        lyricsPath = getFileUrl(lyricsFiles[lyricsFileIndex].filename);
+                        lyricsFileIndex++;
+                    }
+
+                    const artistsArray = (Array.isArray(track.artists) && track.artists.length > 0)
+                        ? track.artists
+                        : data.releaseArtists || [];
+
+                    if (isExistingDbTrack) {
+                        const oldTrack = oldTracks.find(t => t.id === track.id);
+                        const finalAudioPath = audioPath || (oldTrack ? oldTrack.audio_path : null);
+                        const finalLyricsPath = lyricsPath || (oldTrack ? oldTrack.lyrics_file_path : null);
+
+                        let trackIsrc = track.isrc;
+                        if (!trackIsrc && (!oldTrack || !oldTrack.isrc_number)) {
+                            trackIsrc = await generateNextCode(Track, "isrc_number");
+                        } else if (!trackIsrc && oldTrack) {
+                            trackIsrc = oldTrack.isrc_number;
+                        }
+
+                        const updatedTrack = await Track.findOneAndUpdate(
+                            { id: track.id },
+                            {
+                                $set: {
+                                    title: track.title,
+                                    position: index + 1,
+                                    audio_path: finalAudioPath,
+                                    lyrics_file_path: finalLyricsPath,
+                                    genre_id: safeNumber(data.primaryGenre),
+                                    subgenre_id: safeNumber(data.secondaryGenre),
+                                    display_artist: artistsArray,
+                                    feature_artist: artistsArray,
+                                    explicit: track.explicit,
+                                    isrc_number: trackIsrc || null,
+                                    have_isrc: trackIsrc ? 1 : 0,
+                                    publisher: data.label || null,
+                                    producer: track.producer || null,
+                                    lyricist: track.lyricist || null,
+                                    composer: track.composer || null,
+                                    lyrics_text: track.lyrics || null,
+                                    mix_version: track.version || null,
+                                }
+                            },
+                            { new: true }
+                        );
+                        savedTracks.push(updatedTrack);
+                        newTrackIds.push(track.id);
+                    } else {
+                        const trackId = await getNextId(Track);
+                        let trackIsrc = track.isrc;
+                        if (!trackIsrc) {
+                            trackIsrc = await generateNextCode(Track, "isrc_number");
+                        }
+                        const newTrack = await Track.create({
+                            id: trackId,
+                            release_id: releaseId,
+                            title: track.title,
+                            position: index + 1,
+                            audio_files: [track.name],
+                            audio_path: audioPath,
+                            lyrics_file_path: lyricsPath,
+                            duration: formatDuration(track.duration),
+                            genre_id: safeNumber(data.primaryGenre),
+                            subgenre_id: safeNumber(data.secondaryGenre),
+                            display_artist: artistsArray,
+                            feature_artist: artistsArray,
+                            explicit: track.explicit,
+                            isrc_number: trackIsrc || null,
+                            have_isrc: trackIsrc ? 1 : 0,
+                            original_audio_name: track.name,
+                            publisher: data.label || null,
+                            producer: track.producer || null,
+                            lyricist: track.lyricist || null,
+                            composer: track.composer || null,
+                            lyrics_text: track.lyrics || null,
+                            mix_version: track.version || null,
+                        });
+                        savedTracks.push(newTrack);
+                        newTrackIds.push(trackId);
+                    }
+                }
+
+                // Delete any tracks that were removed
+                await Track.deleteMany({
+                    release_id: releaseId,
+                    id: { $nin: newTrackIds }
+                });
+            }
+
+            return res.status(200).json({
+                success: true,
+                message: 'Release updated successfully',
+                release: updateData,
+                tracks: savedTracks,
+            });
+        } catch (err) {
+            console.error('Error updating release:', err);
+            return res.status(500).json({
+                success: false,
+                message: 'Server error while updating release',
                 error: err.message,
             });
         }

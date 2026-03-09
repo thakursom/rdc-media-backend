@@ -26,6 +26,10 @@ const ReleaseSchema = new mongoose.Schema(
             type: String,
             default: null
         },
+        language_id: {
+            type: Number,
+            default: null
+        },
 
         title: {
             type: String,
@@ -113,6 +117,14 @@ const ReleaseSchema = new mongoose.Schema(
             type: String,
             default: null
         },
+        is_various_artists: {
+            type: Number,
+            default: 0
+        },
+        is_first_release: {
+            type: Number,
+            default: 0
+        },
         provided_by: {
             type: String,
             default: null
@@ -158,9 +170,25 @@ const ReleaseSchema = new mongoose.Schema(
             type: Date,
             default: null
         },
+        release_time: {
+            type: String,
+            default: "00:00"
+        },
         original_rel_date: {
             type: Date,
             default: null
+        },
+        is_priority: {
+            type: Number,
+            default: 0
+        },
+        country_restrictions: {
+            type: String,
+            default: "No"
+        },
+        previously_released: {
+            type: String,
+            default: "No"
         },
 
         p_line: {
@@ -209,6 +237,10 @@ const ReleaseSchema = new mongoose.Schema(
         store_ids: {
             type: [Number],
             default: []
+        },
+        future_stores: {
+            type: String,
+            default: "Yes"
         },
 
         created_by: {
