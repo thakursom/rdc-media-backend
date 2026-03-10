@@ -15,6 +15,7 @@ const upcController = require("../controllers/upcController");
 const labelController = require("../controllers/labelController");
 const newsletterController = require("../controllers/newsletterController");
 const ticketController = require("../controllers/ticketController");
+const bulkReleaseController = require("../controllers/bulkReleaseController");
 
 //Auth Apis
 router.post("/login", authController.login);
@@ -37,7 +38,8 @@ router.put("/update-release/:id", authMiddleware, upload.fields([
 ]), releaseController.updateRelease);
 router.get("/releases", authMiddleware, releaseController.getReleases);
 router.get("/releases/:id", authMiddleware, releaseController.getReleaseById);
-router.put("/update-release-status/:id", authMiddleware, releaseController.updateReleaseStatus);
+router.put("/update-release-status/:id", authMiddleware, upload.single("rejection_file"), releaseController.updateReleaseStatus);
+router.post("/bulk-upload-release", authMiddleware, upload.single("zipFile"), bulkReleaseController.bulkUploadRelease);
 
 //Artist Apis
 router.post("/create-artist", authMiddleware, artistController.createArtist);

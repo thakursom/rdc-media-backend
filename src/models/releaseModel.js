@@ -247,6 +247,18 @@ const ReleaseSchema = new mongoose.Schema(
             type: Number,
             default: null
         },
+        admin_remarks: {
+            type: String,
+            default: null
+        },
+        rejection_reason: {
+            type: String,
+            default: null
+        },
+        rejection_file: {
+            type: String,
+            default: null
+        },
         status:
         {
             type: String,

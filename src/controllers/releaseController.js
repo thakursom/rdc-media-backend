@@ -5,6 +5,7 @@ const Label = require("../models/labelModel");
 const Language = require("../models/languageModel");
 const Genre = require("../models/genreModel");
 const SubGenre = require("../models/subGenreModel");
+const ReleaseRemark = require("../models/releaseRemarkModel");
 const Joi = require("joi");
 
 async function getNextId(model) {
@@ -281,7 +282,10 @@ class ReleaseController {
                 query.$or = [
                     { title: { $regex: search, $options: "i" } },
                     { display_artist: { $elemMatch: { $regex: search, $options: "i" } } },
-                    { label_id: { $in: labelIds } }
+                    { upc_number: { $regex: search, $options: "i" } },
+                    { label_id: { $in: labelIds } },
+                    { "tracks.isrc_number": { $regex: search, $options: "i" } },
+                    { "tracks.title": { $regex: search, $options: "i" } }
                 ];
             }
 
@@ -373,6 +377,15 @@ class ReleaseController {
                         as: "tracks"
                     }
                 },
+                // Join with ReleaseRemark to get the latest remarks
+                {
+                    $lookup: {
+                        from: "releaseremarks",
+                        localField: "id",
+                        foreignField: "release_id",
+                        as: "remarks_data"
+                    }
+                },
                 // Project fields to match frontend expectations
                 {
                     $project: {
@@ -390,6 +403,51 @@ class ReleaseController {
                             }
                         },
                         create_type: 1,
+                        admin_remarks: {
+                            $let: {
+                                vars: { latest_remark: { $arrayElemAt: [{ $sortArray: { input: "$remarks_data", sortBy: { created_at: -1 } } }, 0] } },
+                                in: { $ifNull: ["$$latest_remark.remark", "$admin_remarks"] }
+                            }
+                        },
+                        rejection_reason: {
+                            $let: {
+                                vars: { latest_remark: { $arrayElemAt: [{ $sortArray: { input: "$remarks_data", sortBy: { created_at: -1 } } }, 0] } },
+                                in: { $ifNull: ["$$latest_remark.remark", "$rejection_reason"] }
+                            }
+                        },
+                        rejection_file: {
+                            $let: {
+                                vars: {
+                                    latest_remark: { $arrayElemAt: [{ $sortArray: { input: "$remarks_data", sortBy: { created_at: -1 } } }, 0] },
+                                    legacy_file: "$rejection_file"
+                                },
+                                in: {
+                                    $let: {
+                                        vars: {
+                                            selected_file: { $ifNull: ["$$latest_remark.attachment_path", "$$legacy_file"] }
+                                        },
+                                        in: {
+                                            $cond: {
+                                                if: { $and: ["$$selected_file", { $ne: ["$$selected_file", null] }] },
+                                                then: {
+                                                    $concat: [
+                                                        dynamicBaseUrl || "",
+                                                        {
+                                                            $cond: {
+                                                                if: { $regexMatch: { input: "$$selected_file", regex: /^http/ } },
+                                                                then: { $substrCP: ["$$selected_file", { $indexOfCP: ["$$selected_file", "/public/"] }, 1000] },
+                                                                else: "$$selected_file"
+                                                            }
+                                                        }
+                                                    ]
+                                                },
+                                                else: null
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        },
                         primary_artist: {
                             name: { $arrayElemAt: ["$display_artist", 0] }
                         },
@@ -441,7 +499,12 @@ class ReleaseController {
                                         }
                                     },
                                     isrc: "$$t.isrc_number",
-                                    duration: "$$t.duration"
+                                    duration: "$$t.duration",
+                                    composer: "$$t.composer",
+                                    producer: "$$t.producer",
+                                    lyricist: "$$t.lyricist",
+                                    remixer: "$$t.remixer",
+                                    artist: { $arrayElemAt: ["$$t.display_artist", 0] }
                                 }
                             }
                         },
@@ -553,6 +616,15 @@ class ReleaseController {
                         as: "tracks"
                     }
                 },
+                // Join with ReleaseRemark to get the latest remarks
+                {
+                    $lookup: {
+                        from: "releaseremarks",
+                        localField: "id",
+                        foreignField: "release_id",
+                        as: "remarks_data"
+                    }
+                },
                 // Project fields to match frontend expectations
                 {
                     $lookup: {
@@ -594,6 +666,51 @@ class ReleaseController {
                         release_type: 1,
                         status: 1,
                         create_type: 1,
+                        admin_remarks: {
+                            $let: {
+                                vars: { latest_remark: { $arrayElemAt: [{ $sortArray: { input: "$remarks_data", sortBy: { created_at: -1 } } }, 0] } },
+                                in: { $ifNull: ["$$latest_remark.remark", "$admin_remarks"] }
+                            }
+                        },
+                        rejection_reason: {
+                            $let: {
+                                vars: { latest_remark: { $arrayElemAt: [{ $sortArray: { input: "$remarks_data", sortBy: { created_at: -1 } } }, 0] } },
+                                in: { $ifNull: ["$$latest_remark.remark", "$rejection_reason"] }
+                            }
+                        },
+                        rejection_file: {
+                            $let: {
+                                vars: {
+                                    latest_remark: { $arrayElemAt: [{ $sortArray: { input: "$remarks_data", sortBy: { created_at: -1 } } }, 0] },
+                                    legacy_file: "$rejection_file"
+                                },
+                                in: {
+                                    $let: {
+                                        vars: {
+                                            selected_file: { $ifNull: ["$$latest_remark.attachment_path", "$$legacy_file"] }
+                                        },
+                                        in: {
+                                            $cond: {
+                                                if: { $and: ["$$selected_file", { $ne: ["$$selected_file", null] }] },
+                                                then: {
+                                                    $concat: [
+                                                        dynamicBaseUrl || "",
+                                                        {
+                                                            $cond: {
+                                                                if: { $regexMatch: { input: "$$selected_file", regex: /^http/ } },
+                                                                then: { $substrCP: ["$$selected_file", { $indexOfCP: ["$$selected_file", "/public/"] }, 1000] },
+                                                                else: "$$selected_file"
+                                                            }
+                                                        }
+                                                    ]
+                                                },
+                                                else: null
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        },
                         display_artist: 1,
                         primary_artist: {
                             name: { $arrayElemAt: ["$display_artist", 0] }
@@ -650,6 +767,7 @@ class ReleaseController {
                                         }
                                     },
                                     isrc_number: "$$t.isrc_number",
+                                    isrc: "$$t.isrc_number",
                                     duration: "$$t.duration",
                                     remixer: "$$t.remixer",
                                     composer: "$$t.composer",
@@ -657,7 +775,8 @@ class ReleaseController {
                                     lyricist: "$$t.lyricist",
                                     lyrics_text: "$$t.lyrics_text",
                                     explicit: "$$t.explicit",
-                                    display_artist: "$$t.display_artist"
+                                    display_artist: "$$t.display_artist",
+                                    artist: { $arrayElemAt: ["$$t.display_artist", 0] }
                                 }
                             }
                         },
@@ -712,12 +831,19 @@ class ReleaseController {
     async updateReleaseStatus(req, res) {
         try {
             const { id } = req.params;
-            const { status, create_type, admin_remarks } = req.body;
+            const { status, create_type, admin_remarks, rejection_reason, rejection_type } = req.body;
 
             const updateData = {};
             if (status !== undefined) updateData.status = status;
             if (create_type !== undefined) updateData.create_type = create_type;
             if (admin_remarks !== undefined) updateData.admin_remarks = admin_remarks;
+            if (rejection_reason !== undefined) updateData.rejection_reason = rejection_reason;
+
+            let rejection_file = null;
+            if (req.file) {
+                rejection_file = `/public/uploads/${req.file.filename}`;
+                updateData.rejection_file = rejection_file;
+            }
 
             const release = await Release.findOneAndUpdate(
                 { id: id },
@@ -727,6 +853,20 @@ class ReleaseController {
 
             if (!release) {
                 return res.status(404).json({ success: false, message: "Release not found" });
+            }
+
+            // Create a dedicated remark entry
+            if (create_type === 'Rejected' || create_type === 'Approved' || create_type === 'Saved' || admin_remarks || rejection_reason || rejection_file) {
+                const remarkId = await getNextId(ReleaseRemark);
+                await ReleaseRemark.create({
+                    id: remarkId,
+                    release_id: parseInt(id),
+                    action: create_type || (status == "1" ? "Approved" : status == "2" ? "Rejected" : "Updated"),
+                    rejection_type: rejection_type || null,
+                    remark: rejection_reason || admin_remarks || null,
+                    attachment_path: rejection_file,
+                    created_by: req.user?.userId || req.user?._id || null
+                });
             }
 
             return res.status(200).json({ success: true, message: "Status updated successfully", data: release });
