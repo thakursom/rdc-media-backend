@@ -39,11 +39,11 @@ class LabelController {
     // Create Label
     async createLabel(req, res, next) {
         try {
-            const { name, email, country, status } = req.body;
+            const { name, email, country, user_id, status } = req.body;
             if (!name) return res.status(400).json({ success: false, message: "Name is required" });
 
             const id = await getNextId(Label);
-            const newLabel = await Label.create({ id, name, email, country, status });
+            const newLabel = await Label.create({ id, name, email, country, user_id, status });
 
             return res.status(201).json({ success: true, message: "Label created successfully", data: newLabel });
         } catch (error) {
@@ -57,11 +57,11 @@ class LabelController {
     async updateLabel(req, res, next) {
         try {
             const { id } = req.params;
-            const { name, email, country, status } = req.body;
+            const { name, email, country, user_id, status } = req.body;
 
             const updatedLabel = await Label.findOneAndUpdate(
                 { id: id },
-                { name, email, country, status },
+                { name, email, country, user_id, status },
                 { new: true }
             );
 

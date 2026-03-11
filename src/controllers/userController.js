@@ -9,7 +9,6 @@ async function getNextId(model) {
 
 class UserController {
 
-
     // Get all users with pagination and search
     async getUsers(req, res, next) {
         try {
@@ -59,7 +58,7 @@ class UserController {
     // Create User
     async createUser(req, res, next) {
         try {
-            const { name, email, phone, password, role, third_party_username } = req.body;
+            const { name, email, phone, password, role, third_party_username, parent_id } = req.body;
 
             if (!name || !email || !password || !role) {
                 return ResponseService.error(res, "Required fields are missing", 400);
@@ -73,9 +72,9 @@ class UserController {
             const hashedPassword = await bcrypt.hash(password, 10);
             const id = await getNextId(User);
 
-            let parent_id = null;
+            let assigned_parent_id = null;
             if (role === "Sub User") {
-                parent_id = req.user?.userId;
+                assigned_parent_id = parent_id || req.user?.userId;
             }
 
             const newUser = new User({
@@ -86,7 +85,7 @@ class UserController {
                 password: hashedPassword,
                 role,
                 third_party_username,
-                parent_id
+                parent_id: assigned_parent_id
             });
 
             await newUser.save();
@@ -104,9 +103,16 @@ class UserController {
     async updateUser(req, res, next) {
         try {
             const { id } = req.params;
-            const { name, email, phone, password, role, third_party_username } = req.body;
+            const { name, email, phone, password, role, third_party_username, parent_id } = req.body;
 
-            const user = await User.findOne({ id: id });
+            // Try finding by custom id (Number) first
+            let user = await User.findOne({ id: id });
+
+            // If not found, try by _id (ObjectId)
+            if (!user && id.match(/^[0-9a-fA-F]{24}$/)) {
+                user = await User.findById(id);
+            }
+
             if (!user) {
                 return ResponseService.error(res, "User not found", 404);
             }
@@ -117,12 +123,17 @@ class UserController {
             }
 
             const updateData = { name, email, phone, role, third_party_username };
+            if (role === "Sub User") {
+                if (parent_id) updateData.parent_id = parent_id;
+            } else {
+                updateData.parent_id = null;
+            }
             if (password) {
                 updateData.password = await bcrypt.hash(password, 10);
             }
 
-            const updatedUser = await User.findOneAndUpdate(
-                { id: id },
+            const updatedUser = await User.findByIdAndUpdate(
+                user._id,
                 { $set: updateData },
                 { new: true }
             ).select("-password");
@@ -137,12 +148,17 @@ class UserController {
     async deleteUser(req, res, next) {
         try {
             const { id } = req.params;
-            const user = await User.findOneAndDelete({ id: id });
+
+            let user = await User.findOne({ id: id });
+            if (!user && id.match(/^[0-9a-fA-F]{24}$/)) {
+                user = await User.findById(id);
+            }
 
             if (!user) {
                 return ResponseService.error(res, "User not found", 404);
             }
 
+            await User.findByIdAndDelete(user._id);
             return ResponseService.success(res, "User deleted successfully");
         } catch (error) {
             next(error);
@@ -172,9 +188,7 @@ class UserController {
     //fetchAllSubLabel method
     async fetchAllSubLabel(req, res, next) {
         try {
-
             const { userId } = req.user;
-
             const { search } = req.query;
 
             let query = { parent_id: userId };
@@ -193,6 +207,53 @@ class UserController {
         }
     }
 
+    // Toggle user approval status
+    async toggleApprove(req, res, next) {
+        try {
+            const { id } = req.params;
+
+            let user = await User.findOne({ id: id });
+            if (!user && id.match(/^[0-9a-fA-F]{24}$/)) {
+                user = await User.findById(id);
+            }
+
+            if (!user) return ResponseService.error(res, "User not found", 404);
+
+            user.isApproved = user.isApproved === 1 ? 0 : 1;
+            await user.save();
+
+            const status = user.isApproved === 1 ? "approved" : "rejected";
+            return ResponseService.success(res, `User ${status} successfully`, { user });
+        } catch (error) {
+            next(error);
+        }
+    }
+
+    // Toggle user lock status
+    async toggleLock(req, res, next) {
+        try {
+            const { id } = req.params;
+
+            let user = await User.findOne({ id: id });
+            if (!user && id.match(/^[0-9a-fA-F]{24}$/)) {
+                user = await User.findById(id);
+            }
+
+            if (!user) return ResponseService.error(res, "User not found", 404);
+
+            user.isLocked = user.isLocked === 1 ? 0 : 1;
+            // If unlocking (setting to 1), reset login attempts
+            if (user.isLocked === 1) {
+                user.loginAttempts = 0;
+            }
+            await user.save();
+
+            const status = user.isLocked === 1 ? "unlocked" : "locked";
+            return ResponseService.success(res, `User ${status} successfully`, { user });
+        } catch (error) {
+            next(error);
+        }
+    }
 }
 
 module.exports = new UserController();

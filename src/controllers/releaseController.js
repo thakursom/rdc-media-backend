@@ -511,7 +511,9 @@ class ReleaseController {
                         upc: "$upc_number",
                         catalogue_number: "$cat_number",
                         territories: "$store_ids", // Using store_ids as placeholder if territories field is missing
-                        stores: "$store_ids"
+                        stores: "$store_ids",
+                        createdAt: 1,
+                        updatedAt: 1
                     }
                 },
                 // Final safeguard: ensure uniqueness by release id
@@ -805,6 +807,8 @@ class ReleaseController {
                         country_restrictions: 1,
                         previously_released: 1,
                         future_stores: 1,
+                        createdAt: 1,
+                        updatedAt: 1,
                         release_date: 1,
                         release_time: 1,
                         genre_name: "$genre_info.title",

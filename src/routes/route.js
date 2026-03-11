@@ -19,6 +19,11 @@ const bulkReleaseController = require("../controllers/bulkReleaseController");
 
 //Auth Apis
 router.post("/login", authController.login);
+router.get("/get-profile", authMiddleware, authController.getProfile);
+router.post("/verify-2fa", authController.verify2FALogin);
+router.post("/generate-2fa", authMiddleware, authController.generate2FA);
+router.post("/enable-2fa", authMiddleware, authController.enable2FA);
+router.post("/disable-2fa", authMiddleware, authController.disable2FA);
 router.post("/forgot-password", authController.forgotPassword);
 router.post("/reset-password/:token", authController.resetPassword);
 router.post("/change-password", authMiddleware, authController.changePassword);
@@ -57,6 +62,8 @@ router.get("/users", authMiddleware, userController.getUsers);
 router.post("/create-user", authMiddleware, userController.createUser);
 router.put("/update-user/:id", authMiddleware, userController.updateUser);
 router.delete("/delete-user/:id", authMiddleware, userController.deleteUser);
+router.put("/toggle-approve/:id", authMiddleware, userController.toggleApprove);
+router.put("/toggle-lock/:id", authMiddleware, userController.toggleLock);
 router.get("/labels", authMiddleware, userController.fetchAllLabels);
 router.get("/sublabels", authMiddleware, userController.fetchAllSubLabel);
 

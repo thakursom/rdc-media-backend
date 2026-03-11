@@ -20,6 +20,10 @@ const LabelSchema = new mongoose.Schema(
             type: String,
             default: null
         },
+        user_id: {
+            type: Number,
+            default: null
+        },
         status: {
             type: Number,
             default: 1 // 1 = Active, 0 = Inactive

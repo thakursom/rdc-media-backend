@@ -82,6 +82,26 @@ const UserSchema = new mongoose.Schema({
     resetTokenExpire: {
         type: Date,
         default: null
+    },
+    isTwoFactorEnabled: {
+        type: Boolean,
+        default: false
+    },
+    twoFactorSecret: {
+        type: String,
+        default: null
+    },
+    isApproved: {
+        type: Number,
+        default: 0 // 0: Pending, 1: Approved
+    },
+    isLocked: {
+        type: Number,
+        default: 0 // 1: Active, 0: Locked (Default 0 per requested logic)
+    },
+    loginAttempts: {
+        type: Number,
+        default: 0
     }
 
 }, {
