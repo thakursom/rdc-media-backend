@@ -2,12 +2,7 @@ const mongoose = require("mongoose");
 
 const LanguageSchema = new mongoose.Schema(
     {
-        id: {
-            type: Number,
-            required: true,
-            unique: true,
-            index: true
-        },
+
         name: {
             type: String, // e.g., "English", "Hindi"
             required: true,

@@ -1,14 +1,9 @@
 const mongoose = require("mongoose");
 
 const TrackSchema = new mongoose.Schema({
-    id: {
-        type: Number,
-        required: true,
-        unique: true,
-        index: true
-    },
+
     release_id: {
-        type: Number,
+        type: String,
         default: null
     },
     serial_number: {
@@ -34,9 +29,9 @@ const TrackSchema = new mongoose.Schema({
     },
 
     artists: {
-        type: [Number],
+        type: [String],
         default: []
-    }, // "3306" → [3306]
+    }, // "_id" strings or names
     display_artist: {
         type: [String],
         default: []
@@ -94,11 +89,11 @@ const TrackSchema = new mongoose.Schema({
     },
 
     genre_id: {
-        type: Number,
+        type: String,
         default: null
     },
     subgenre_id: {
-        type: Number,
+        type: String,
         default: null
     },
 

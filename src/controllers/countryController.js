@@ -1,9 +1,6 @@
 const Country = require("../models/countryModel");
 
-async function getNextId(model) {
-    const lastDoc = await model.findOne().sort({ id: -1 }).limit(1);
-    return lastDoc && lastDoc.id ? lastDoc.id + 1 : 1;
-}
+
 
 class CountryController {
 
@@ -39,8 +36,7 @@ class CountryController {
             const { countryName, countryCode } = req.body;
             if (!countryName || !countryCode) return res.status(400).json({ success: false, message: "Country Name and Code are required" });
 
-            const id = await getNextId(Country);
-            const newCountry = await Country.create({ id, countryName, countryCode });
+            const newCountry = await Country.create({ countryName, countryCode });
 
             return res.status(201).json({ success: true, message: "Country created", data: newCountry });
         } catch (error) {
@@ -56,8 +52,8 @@ class CountryController {
             const { id } = req.params;
             const { countryName, countryCode, status } = req.body;
 
-            const updatedCountry = await Country.findOneAndUpdate(
-                { id: id },
+            const updatedCountry = await Country.findByIdAndUpdate(
+                id,
                 { countryName, countryCode, status },
                 { new: true }
             );
@@ -76,7 +72,7 @@ class CountryController {
     async deleteCountry(req, res) {
         try {
             const { id } = req.params;
-            const deletedCountry = await Country.findOneAndDelete({ id: id });
+            const deletedCountry = await Country.findByIdAndDelete(id);
 
             if (!deletedCountry) return res.status(404).json({ success: false, message: "Country not found" });
 

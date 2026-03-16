@@ -2,14 +2,9 @@ const mongoose = require("mongoose");
 
 const ReleaseRemarkSchema = new mongoose.Schema(
     {
-        id: {
-            type: Number,
-            required: true,
-            unique: true,
-            index: true
-        },
+
         release_id: {
-            type: Number,
+            type: String,
             required: true,
             index: true
         },
@@ -30,7 +25,7 @@ const ReleaseRemarkSchema = new mongoose.Schema(
             default: null
         },
         created_by: {
-            type: Number,
+            type: String,
             default: null
         }
     },

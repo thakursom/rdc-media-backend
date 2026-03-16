@@ -3,10 +3,7 @@ const xlsx = require("xlsx");
 const fs = require("fs");
 const path = require("path");
 
-async function getNextId(model) {
-    const lastDoc = await model.findOne().sort({ id: -1 }).limit(1);
-    return lastDoc && lastDoc.id ? lastDoc.id + 1 : 1;
-}
+
 
 class UPCController {
 
@@ -73,7 +70,7 @@ class UPCController {
             const existingUPCSet = new Set(existingUPCs.map(u => u.upc));
             const existingEANSet = new Set(existingUPCs.map(u => u.ean));
 
-            let currentId = await getNextId(UPC);
+
             const docsToInsert = [];
 
             for (const row of data) {
@@ -89,7 +86,6 @@ class UPCController {
                         // Check if already exist in DB or in our insert queue
                         if (!existingUPCSet.has(upcVal) && !existingEANSet.has(eanVal)) {
                             docsToInsert.push({
-                                id: currentId++,
                                 upc: upcVal,
                                 ean: eanVal,
                                 status: 1 // Default enabled

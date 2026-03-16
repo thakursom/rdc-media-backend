@@ -4,20 +4,10 @@ const Language = require("../models/languageModel");
 const Label = require("../models/labelModel");
 const Genre = require("../models/genreModel");
 const SubGenre = require("../models/subGenreModel");
+const User = require("../models/userModel");
 const XLSX = require("xlsx");
 const path = require("path");
 const fs = require("fs");
-
-// Helper to get next ID
-const getNextId = async (model) => {
-    try {
-        const lastDoc = await model.findOne({}, {}, { sort: { 'id': -1 } });
-        return lastDoc && lastDoc.id ? lastDoc.id + 1 : 1;
-    } catch (error) {
-        console.error("Error getting next ID:", error);
-        return Date.now();
-    }
-};
 
 const resolveDate = (dateStr) => {
     if (!dateStr) return null;
@@ -119,11 +109,24 @@ const bulkUploadRelease = async (req, res) => {
             if (!name) return null;
             const cleanName = String(name).trim();
             if (labelCache[cleanName]) return labelCache[cleanName];
-            const label = await Label.findOne({ name: new RegExp(`^${cleanName}$`, "i") });
+
+            // 1. Check Label collection
+            let label = await Label.findOne({ name: new RegExp(`^${cleanName}$`, "i") });
             if (label) {
-                labelCache[cleanName] = label.id;
-                return label.id;
+                labelCache[cleanName] = label._id;
+                return label._id;
             }
+
+            // 2. Check User collection (role: Label)
+            const userLabel = await User.findOne({ 
+                role: "Label", 
+                name: new RegExp(`^${cleanName}$`, "i") 
+            });
+            if (userLabel) {
+                labelCache[cleanName] = userLabel._id;
+                return userLabel._id;
+            }
+
             return null;
         };
 
@@ -133,8 +136,8 @@ const bulkUploadRelease = async (req, res) => {
             if (genreCache[cleanTitle]) return genreCache[cleanTitle];
             const genre = await Genre.findOne({ title: new RegExp(`^${cleanTitle}$`, "i") });
             if (genre) {
-                genreCache[cleanTitle] = genre.id;
-                return genre.id;
+                genreCache[cleanTitle] = genre._id;
+                return genre._id;
             }
             return null;
         };
@@ -145,8 +148,8 @@ const bulkUploadRelease = async (req, res) => {
             if (subGenreCache[cleanTitle]) return subGenreCache[cleanTitle];
             const subGenre = await SubGenre.findOne({ title: new RegExp(`^${cleanTitle}$`, "i") });
             if (subGenre) {
-                subGenreCache[cleanTitle] = subGenre.id;
-                return subGenre.id;
+                subGenreCache[cleanTitle] = subGenre._id;
+                return subGenre._id;
             }
             return null;
         };
@@ -157,8 +160,8 @@ const bulkUploadRelease = async (req, res) => {
             if (languageCache[cleanName]) return languageCache[cleanName];
             const lang = await Language.findOne({ name: new RegExp(`^${cleanName}$`, "i") });
             if (lang) {
-                languageCache[cleanName] = lang.id;
-                return lang.id;
+                languageCache[cleanName] = lang._id;
+                return lang._id;
             }
             return null;
         };
@@ -217,13 +220,13 @@ const bulkUploadRelease = async (req, res) => {
 
                 console.log(`Processing Release: ${title}`);
 
-                const labelName = findValue(row, ["Label", "Label (Rquired)"]);
-                const genreName = findValue(row, ["Main Genre", "Primary Genre", "Track Main Genre"]);
-                const subGenreName = findValue(row, ["Sub Genre", "Secondary Genre", "Track Sub Genre"]);
-                const langName = findValue(row, ["Meta Language", "Content Language", "Language"]);
-                const dateVal = findValue(row, ["Release Date"]);
-                const artistVal = findValue(row, ["Display Artist", "Artist"]);
-                const artworkName = findValue(row, ["Art Work Name", "Artwork", "Image"]);
+                const labelName = findValue(row, ["Label", "Label Name", "Label (Required)", "Label(Required)", "Label (Rquired)"]);
+                const genreName = findValue(row, ["Main Genre", "Primary Genre", "Genre", "Track Main Genre"]);
+                const subGenreName = findValue(row, ["Sub Genre", "Secondary Genre", "SubGenre", "Track Sub Genre"]);
+                const langName = findValue(row, ["Meta Language", "Content Language", "Language", "Metalanguage"]);
+                const dateVal = findValue(row, ["Release Date", "ReleaseDate", "Date"]);
+                const artistVal = findValue(row, ["Display Artist", "Artist", "Main Artist"]);
+                const artworkName = findValue(row, ["Art Work Name", "Artwork", "Image", "Cover Art"]);
 
                 const labelId = await resolveLabel(labelName);
                 const genreId = await resolveGenre(genreName);
@@ -235,9 +238,7 @@ const bulkUploadRelease = async (req, res) => {
 
                 const artworkAsset = extractAsset(artworkName);
 
-                const releaseId = await getNextId(Release);
                 const releaseData = {
-                    id: releaseId,
                     title: title,
                     display_artist: artistArray,
                     upc_number: findValue(row, ["UPC", "UPC (Optional)", "UPCNumber", "Barcode"]),
@@ -259,11 +260,11 @@ const bulkUploadRelease = async (req, res) => {
                     description: findValue(row, ["Release Description", "Description"]),
                     created_at: new Date(),
                     updated_at: new Date(),
-                    created_by: req.user?.id || null
+                    created_by: req.user?.userId || req.user?._id || null
                 };
 
-                await Release.create(releaseData);
-                console.log(`- Created Release entry (ID: ${releaseId}) ${artworkAsset ? '[with artwork]' : ''}`);
+                const newRelease = await Release.create(releaseData);
+                console.log(`- Created Release entry (ID: ${newRelease._id}) ${artworkAsset ? '[with artwork]' : ''}`);
 
                 const trackTitle = findValue(row, ["Track Title", "TrackTitle", "Song Title", "TrackName"]);
                 if (trackTitle) {
@@ -274,10 +275,8 @@ const bulkUploadRelease = async (req, res) => {
                     const audioAsset = extractAsset(audioFileName);
                     if (audioFileName && !audioAsset) console.log(`Warning: Audio file "${audioFileName}" not found in ZIP`);
 
-                    const trackId = await getNextId(Track);
                     await Track.create({
-                        id: trackId,
-                        release_id: releaseId,
+                        release_id: newRelease._id,
                         title: trackTitle,
                         display_artist: trackArtistArray,
                         position: findValue(row, ["Track#"]) || 1,
@@ -290,7 +289,7 @@ const bulkUploadRelease = async (req, res) => {
                         audio_path: audioAsset ? `/public/uploads/${audioAsset.uniqueName}` : null,
                         original_audio_name: audioAsset ? audioAsset.originalName : null
                     });
-                    console.log(`- Created Track entry (ID: ${trackId}) ${audioAsset ? '[with audio]' : ''}`);
+                    console.log(`- Created Track entry for release ${newRelease._id} ${audioAsset ? '[with audio]' : ''}`);
                 }
 
                 createdCount++;

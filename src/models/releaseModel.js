@@ -2,19 +2,14 @@ const mongoose = require("mongoose");
 
 const ReleaseSchema = new mongoose.Schema(
     {
-        id: {
-            type: Number,
-            required: true,
-            unique: true,
-            index: true
-        },
+
 
         sublabel_id: {
-            type: Number,
+            type: String,
             default: null
         },
         label_id: {
-            type: Number,
+            type: String,
             default: null
         },
 
@@ -27,7 +22,7 @@ const ReleaseSchema = new mongoose.Schema(
             default: null
         },
         language_id: {
-            type: Number,
+            type: String,
             default: null
         },
 
@@ -144,11 +139,11 @@ const ReleaseSchema = new mongoose.Schema(
         },
 
         genre_id: {
-            type: Number,
+            type: String,
             default: null
         },
         subgenre_id: {
-            type: Number,
+            type: String,
             default: null
         },
 
@@ -162,7 +157,7 @@ const ReleaseSchema = new mongoose.Schema(
         },
 
         youtube_package_id: {
-            type: Number,
+            type: String,
             default: null
         },
 
@@ -235,7 +230,7 @@ const ReleaseSchema = new mongoose.Schema(
         },
 
         store_ids: {
-            type: [Number],
+            type: [String],
             default: []
         },
         future_stores: {
@@ -244,7 +239,7 @@ const ReleaseSchema = new mongoose.Schema(
         },
 
         created_by: {
-            type: Number,
+            type: String,
             default: null
         },
         admin_remarks: {

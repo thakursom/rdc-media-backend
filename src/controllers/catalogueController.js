@@ -37,7 +37,7 @@ exports.getCatalogueStats = async (req, res) => {
             { $unwind: "$genreInfo" },
             {
                 $project: {
-                    name: "$genreInfo.name",
+                    name: "$genreInfo.title",
                     count: 1
                 }
             },

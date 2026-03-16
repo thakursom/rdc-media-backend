@@ -1,9 +1,6 @@
 const Language = require("../models/languageModel");
 
-async function getNextId(model) {
-    const lastDoc = await model.findOne().sort({ id: -1 }).limit(1);
-    return lastDoc && lastDoc.id ? lastDoc.id + 1 : 1;
-}
+
 
 class LanguageController {
     // Get all languages
@@ -23,8 +20,7 @@ class LanguageController {
             const { name, code } = req.body;
             if (!name) return res.status(400).json({ success: false, message: "Name is required" });
 
-            const id = await getNextId(Language);
-            const newLanguage = await Language.create({ id, name, code });
+            const newLanguage = await Language.create({ name, code });
 
             return res.status(201).json({ success: true, message: "Language created", data: newLanguage });
         } catch (error) {

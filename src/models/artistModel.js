@@ -1,12 +1,9 @@
 const mongoose = require("mongoose");
 
 const ArtistSchema = new mongoose.Schema({
-    id: {
-        type: Number,
-        default: null,
-    },
+
     created_by: {
-        type: Number,
+        type: String,
         ref: "User",
         default: null
     },

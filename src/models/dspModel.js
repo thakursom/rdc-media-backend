@@ -2,12 +2,7 @@ const mongoose = require("mongoose");
 
 const DSPSchema = new mongoose.Schema(
     {
-        id: {
-            type: Number,
-            required: true,
-            unique: true,
-            index: true
-        },
+
         name: {
             type: String,
             required: true,

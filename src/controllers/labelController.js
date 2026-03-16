@@ -1,10 +1,7 @@
 const Label = require("../models/labelModel");
 const ResponseService = require("../services/responseService");
 
-async function getNextId(model) {
-    const lastDoc = await model.findOne().sort({ id: -1 }).limit(1);
-    return lastDoc && lastDoc.id ? lastDoc.id + 1 : 1;
-}
+
 
 class LabelController {
     // Get all labels
@@ -42,8 +39,7 @@ class LabelController {
             const { name, email, country, user_id, status } = req.body;
             if (!name) return res.status(400).json({ success: false, message: "Name is required" });
 
-            const id = await getNextId(Label);
-            const newLabel = await Label.create({ id, name, email, country, user_id, status });
+            const newLabel = await Label.create({ name, email, country, user_id, status });
 
             return res.status(201).json({ success: true, message: "Label created successfully", data: newLabel });
         } catch (error) {
@@ -59,8 +55,8 @@ class LabelController {
             const { id } = req.params;
             const { name, email, country, user_id, status } = req.body;
 
-            const updatedLabel = await Label.findOneAndUpdate(
-                { id: id },
+            const updatedLabel = await Label.findByIdAndUpdate(
+                id,
                 { name, email, country, user_id, status },
                 { new: true }
             );
@@ -79,7 +75,7 @@ class LabelController {
     async deleteLabel(req, res, next) {
         try {
             const { id } = req.params;
-            const deletedLabel = await Label.findOneAndDelete({ id: id });
+            const deletedLabel = await Label.findByIdAndDelete(id);
 
             if (!deletedLabel) return res.status(404).json({ success: false, message: "Label not found" });
 

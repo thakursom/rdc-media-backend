@@ -7,11 +7,9 @@ const Genre = require("../models/genreModel");
 const SubGenre = require("../models/subGenreModel");
 const ReleaseRemark = require("../models/releaseRemarkModel");
 const Joi = require("joi");
+const mongoose = require("mongoose");
 
-async function getNextId(model) {
-    const lastDoc = await model.findOne().sort({ id: -1 }).limit(1);
-    return lastDoc && lastDoc.id ? lastDoc.id + 1 : 1;
-}
+
 
 const formatDuration = (sec) => {
     if (!sec) return null;
@@ -59,11 +57,11 @@ class ReleaseController {
             // Define Joi Schema
             const schema = Joi.object({
                 title: Joi.string().required().messages({ 'any.required': 'Title is required' }),
-                primaryGenre: Joi.number().required(),
-                secondaryGenre: Joi.number().optional().allow(null),
-                language: Joi.number().required(),
+                primaryGenre: Joi.any().required(),
+                secondaryGenre: Joi.any().optional().allow(null, ''),
+                language: Joi.any().required(),
                 releaseDate: Joi.date().required(),
-                label: Joi.number().optional().allow(null),
+                label: Joi.any().optional().allow(null, ''),
                 productionHolder: Joi.string().optional().allow(null, ''),
                 productionYear: Joi.string().optional().allow(null, ''),
                 copyrightHolder: Joi.string().optional().allow(null, ''),
@@ -76,7 +74,7 @@ class ReleaseController {
                 parentalWarning: Joi.string().optional().allow(null, '0'),
                 description: Joi.string().optional().allow(null, ''),
                 pricing: Joi.string().optional().allow(null, ''),
-                selectedStores: Joi.array().items(Joi.number()).optional(),
+                selectedStores: Joi.array().items(Joi.any()).optional(),
                 releaseArtists: Joi.array().items(Joi.string()).min(1).required(),
             }).unknown(true);
 
@@ -111,27 +109,23 @@ class ReleaseController {
                 isrcNumber = await generateNextCode(Release, "isrc");
             }
 
-            const safeNumber = (val) => {
+            const safeId = (val) => {
                 if (val == null || val === '' || val === undefined) return null;
-                const num = Number(val);
-                return isNaN(num) ? null : num;
+                return String(val);
             };
 
 
             let langCode = null;
             let langName = null;
             if (data.language) {
-                const langDoc = await Language.findOne({ id: data.language });
+                const langDoc = await Language.findById(data.language);
                 if (langDoc) {
                     langCode = langDoc.code;
                     langName = langDoc.name;
                 }
             }
 
-            const releaseId = await getNextId(Release);
-
             const releaseData = {
-                id: releaseId,
                 title: data.title || '',
                 lang: langCode,
                 content_lang: langName,
@@ -142,8 +136,8 @@ class ReleaseController {
                 release_type: data.releaseType || 'single',
                 label_id: data.label || null,
                 sublabel_id: null,
-                genre_id: safeNumber(data.primaryGenre),
-                subgenre_id: safeNumber(data.secondaryGenre),
+                genre_id: safeId(data.primaryGenre),
+                subgenre_id: safeId(data.secondaryGenre),
                 release_date: data.releaseDate ? new Date(data.releaseDate) : null,
                 release_time: data.releaseTime || '00:00',
                 p_line: data.productionHolder || null,
@@ -156,10 +150,10 @@ class ReleaseController {
                 parental_warning_type: data.parentalWarning || '0',
                 description: data.description || null,
                 pricing: data.pricing || null,
-                store_ids: data.selectedStores || [],
+                store_ids: (data.selectedStores || []).filter(id => id != null),
                 artwork: data.artworkFile || null,
                 artwork_path: artworkFile ? getFileUrl(artworkFile.filename) : null,
-                created_by: req.user?.id || null,
+                created_by: req.user?.userId || req.user?._id || null,
                 is_various_artists: data.isVariousArtists ? 1 : 0,
                 is_first_release: data.isFirstRelease ? 1 : 0,
                 is_priority: data.priorityDistribution ? 1 : 0,
@@ -182,7 +176,7 @@ class ReleaseController {
                 for (let index = 0; index < data.tracks.length; index++) {
                     const track = data.tracks[index];
                     try {
-                        const trackId = await getNextId(Track);
+
 
                         let audioPath = null;
                         if (track.hasNewAudioFile && trackFiles[audioFileIndex]) {
@@ -206,16 +200,15 @@ class ReleaseController {
                         }
 
                         const newTrack = await Track.create({
-                            id: trackId,
-                            release_id: releaseId,
+                            release_id: newRelease._id,
                             title: track.title,
                             position: index + 1,
                             audio_files: [track.name],
                             audio_path: audioPath,
                             lyrics_file_path: lyricsPath,
                             duration: formatDuration(track.duration),
-                            genre_id: safeNumber(data.primaryGenre),
-                            subgenre_id: safeNumber(data.secondaryGenre),
+                            genre_id: safeId(data.primaryGenre),
+                            subgenre_id: safeId(data.secondaryGenre),
                             display_artist: artistsArray,
                             feature_artist: artistsArray,
                             explicit: track.explicit,
@@ -272,18 +265,26 @@ class ReleaseController {
 
             // Handle Search
             if (search) {
-                const matchingLabels = await User.find({
+                // Search in User model (for labels that might be users)
+                const matchingUserLabels = await User.find({
                     name: { $regex: search, $options: "i" },
                     role: "Label"
-                }).select("id");
+                }).select("_id id");
 
-                const labelIds = matchingLabels.map(l => l.id);
+                // Also search in dedicated Label model
+                const matchingDedicatedLabels = await Label.find({
+                    name: { $regex: search, $options: "i" }
+                }).select("_id");
+
+                const userLabelIds = matchingUserLabels.map(l => String(l._id || l.id));
+                const dedicatedLabelIds = matchingDedicatedLabels.map(l => String(l._id));
+                const allLabelIds = [...new Set([...userLabelIds, ...dedicatedLabelIds])];
 
                 query.$or = [
                     { title: { $regex: search, $options: "i" } },
                     { display_artist: { $elemMatch: { $regex: search, $options: "i" } } },
                     { upc_number: { $regex: search, $options: "i" } },
-                    { label_id: { $in: labelIds } },
+                    { label_id: { $in: allLabelIds } },
                     { "tracks.isrc_number": { $regex: search, $options: "i" } },
                     { "tracks.title": { $regex: search, $options: "i" } }
                 ];
@@ -308,10 +309,20 @@ class ReleaseController {
             }
 
             if (label) {
+                // If label is passed, it could be a name or an ID from the dropdown
                 const matchingLabels = await Label.find({
-                    name: { $regex: label, $options: "i" }
-                }).select("id");
-                const labelIds = matchingLabels.map(l => l.id);
+                    $or: [
+                        { name: { $regex: label, $options: "i" } },
+                        { _id: mongoose.isValidObjectId(label) ? label : null }
+                    ]
+                }).select("_id");
+                
+                const labelIds = matchingLabels.map(l => String(l._id));
+                // Add the input itself if it's a valid ID but not found in the name search
+                if (mongoose.isValidObjectId(label) && !labelIds.includes(String(label))) {
+                    labelIds.push(String(label));
+                }
+                
                 query.label_id = { $in: labelIds };
             }
 
@@ -322,8 +333,8 @@ class ReleaseController {
             if (user) {
                 const matchingUsers = await User.find({
                     name: { $regex: user, $options: "i" }
-                }).select("id");
-                const userIds = matchingUsers.map(u => u.id);
+                }).select("_id");
+                const userIds = matchingUsers.map(u => u._id);
                 query.created_by = { $in: userIds };
             }
 
@@ -358,8 +369,19 @@ class ReleaseController {
                 {
                     $lookup: {
                         from: "labels",
-                        localField: "label_id",
-                        foreignField: "id",
+                        let: { lid: "$label_id" },
+                        pipeline: [
+                            {
+                                $match: {
+                                    $expr: {
+                                        $or: [
+                                            { $eq: ["$_id", "$$lid"] },
+                                            { $eq: ["$_id", { $convert: { input: "$$lid", to: "objectId", onError: null, onNull: null } }] }
+                                        ]
+                                    }
+                                }
+                            }
+                        ],
                         as: "label_data"
                     }
                 },
@@ -372,8 +394,19 @@ class ReleaseController {
                 {
                     $lookup: {
                         from: "tracks",
-                        localField: "id",
-                        foreignField: "release_id",
+                        let: { rid: "$_id" },
+                        pipeline: [
+                            {
+                                $match: {
+                                    $expr: {
+                                        $or: [
+                                            { $eq: ["$release_id", { $toString: "$$rid" }] },
+                                            { $eq: ["$release_id", "$$rid"] }
+                                        ]
+                                    }
+                                }
+                            }
+                        ],
                         as: "tracks"
                     }
                 },
@@ -381,8 +414,19 @@ class ReleaseController {
                 {
                     $lookup: {
                         from: "releaseremarks",
-                        localField: "id",
-                        foreignField: "release_id",
+                        let: { rid: "$_id" },
+                        pipeline: [
+                            {
+                                $match: {
+                                    $expr: {
+                                        $or: [
+                                            { $eq: ["$release_id", { $toString: "$$rid" }] },
+                                            { $eq: ["$release_id", "$$rid"] }
+                                        ]
+                                    }
+                                }
+                            }
+                        ],
                         as: "remarks_data"
                     }
                 },
@@ -478,7 +522,7 @@ class ReleaseController {
                                 input: "$tracks",
                                 as: "t",
                                 in: {
-                                    id: "$$t.id",
+                                    _id: "$$t._id",
                                     title: "$$t.title",
                                     audio_path: {
                                         $cond: {
@@ -516,17 +560,7 @@ class ReleaseController {
                         updatedAt: 1
                     }
                 },
-                // Final safeguard: ensure uniqueness by release id
-                {
-                    $group: {
-                        _id: "$id",
-                        doc: { $first: "$$ROOT" }
-                    }
-                },
-                {
-                    $replaceRoot: { newRoot: "$doc" }
-                },
-                // Re-apply sort AFTER grouping because $group does not preserve order
+                // Re-apply sort because grouping was removed (grouping was also problematic)
                 { $sort: sortStage }
             ];
 
@@ -566,13 +600,24 @@ class ReleaseController {
             const dynamicBaseUrl = `${protocol}://${host}`;
 
             const aggregation = [
-                { $match: { id: parseInt(id), deleted: 0 } },
+                { $match: { _id: new mongoose.Types.ObjectId(id), deleted: 0 } },
                 // Join with Users (Labels)
                 {
                     $lookup: {
                         from: "labels",
-                        localField: "label_id",
-                        foreignField: "id",
+                        let: { lid: "$label_id" },
+                        pipeline: [
+                            {
+                                $match: {
+                                    $expr: {
+                                        $or: [
+                                            { $eq: ["$_id", "$$lid"] },
+                                            { $eq: ["$_id", { $convert: { input: "$$lid", to: "objectId", onError: null, onNull: null } }] }
+                                        ]
+                                    }
+                                }
+                            }
+                        ],
                         as: "label_data"
                     }
                 },
@@ -585,8 +630,19 @@ class ReleaseController {
                 {
                     $lookup: {
                         from: "genres",
-                        localField: "genre_id",
-                        foreignField: "id",
+                        let: { gid: "$genre_id" },
+                        pipeline: [
+                            {
+                                $match: {
+                                    $expr: {
+                                        $or: [
+                                            { $eq: ["$_id", "$$gid"] },
+                                            { $eq: ["$_id", { $convert: { input: "$$gid", to: "objectId", onError: null, onNull: null } }] }
+                                        ]
+                                    }
+                                }
+                            }
+                        ],
                         as: "genre_info"
                     }
                 },
@@ -599,8 +655,19 @@ class ReleaseController {
                 {
                     $lookup: {
                         from: "subgenres",
-                        localField: "subgenre_id",
-                        foreignField: "id",
+                        let: { sgid: "$subgenre_id" },
+                        pipeline: [
+                            {
+                                $match: {
+                                    $expr: {
+                                        $or: [
+                                            { $eq: ["$_id", "$$sgid"] },
+                                            { $eq: ["$_id", { $convert: { input: "$$sgid", to: "objectId", onError: null, onNull: null } }] }
+                                        ]
+                                    }
+                                }
+                            }
+                        ],
                         as: "subgenre_info"
                     }
                 },
@@ -613,8 +680,19 @@ class ReleaseController {
                 {
                     $lookup: {
                         from: "tracks",
-                        localField: "id",
-                        foreignField: "release_id",
+                        let: { rid: "$_id" },
+                        pipeline: [
+                            {
+                                $match: {
+                                    $expr: {
+                                        $or: [
+                                            { $eq: ["$release_id", { $toString: "$$rid" }] },
+                                            { $eq: ["$release_id", "$$rid"] }
+                                        ]
+                                    }
+                                }
+                            }
+                        ],
                         as: "tracks"
                     }
                 },
@@ -622,8 +700,19 @@ class ReleaseController {
                 {
                     $lookup: {
                         from: "releaseremarks",
-                        localField: "id",
-                        foreignField: "release_id",
+                        let: { rid: "$_id" },
+                        pipeline: [
+                            {
+                                $match: {
+                                    $expr: {
+                                        $or: [
+                                            { $eq: ["$release_id", { $toString: "$$rid" }] },
+                                            { $eq: ["$release_id", "$$rid"] }
+                                        ]
+                                    }
+                                }
+                            }
+                        ],
                         as: "remarks_data"
                     }
                 },
@@ -641,7 +730,7 @@ class ReleaseController {
                                             {
                                                 $or: [
                                                     { $and: [{ $ne: ["$$r_lang", null] }, { $eq: ["$code", "$$r_lang"] }] },
-                                                    { $and: [{ $ne: ["$$r_id", null] }, { $eq: ["$id", "$$r_id"] }] }
+                                                    { $and: [{ $ne: ["$$r_id", null] }, { $eq: ["$_id", "$$r_id"] }] }
                                                 ]
                                             }
                                         ]
@@ -746,7 +835,7 @@ class ReleaseController {
                                 input: "$tracks",
                                 as: "t",
                                 in: {
-                                    id: "$$t.id",
+                                    _id: "$$t._id",
                                     title: "$$t.title",
                                     mix_version: "$$t.mix_version",
                                     position: "$$t.position",
@@ -849,10 +938,10 @@ class ReleaseController {
                 updateData.rejection_file = rejection_file;
             }
 
-            const release = await Release.findOneAndUpdate(
-                { id: id },
+            const release = await Release.findByIdAndUpdate(
+                id,
                 { $set: updateData },
-                { new: true }
+                { returnDocument: 'after' }
             );
 
             if (!release) {
@@ -861,10 +950,8 @@ class ReleaseController {
 
             // Create a dedicated remark entry
             if (create_type === 'Rejected' || create_type === 'Approved' || create_type === 'Saved' || admin_remarks || rejection_reason || rejection_file) {
-                const remarkId = await getNextId(ReleaseRemark);
                 await ReleaseRemark.create({
-                    id: remarkId,
-                    release_id: parseInt(id),
+                    release_id: id,
                     action: create_type || (status == "1" ? "Approved" : status == "2" ? "Rejected" : "Updated"),
                     rejection_type: rejection_type || null,
                     remark: rejection_reason || admin_remarks || null,
@@ -882,7 +969,7 @@ class ReleaseController {
     async updateRelease(req, res) {
         try {
             const { id } = req.params;
-            const releaseId = parseInt(id);
+            const releaseId = id;
 
             let data = req.body;
             if (req.body.data) {
@@ -893,7 +980,7 @@ class ReleaseController {
                 }
             }
 
-            const existingRelease = await Release.findOne({ id: releaseId });
+            const existingRelease = await Release.findById(releaseId);
             if (!existingRelease) {
                 return res.status(404).json({ success: false, message: "Release not found" });
             }
@@ -909,16 +996,15 @@ class ReleaseController {
             let upcNumber = data.upcMode === "Auto" ? existingRelease.upc_number : data.upc;
             let isrcNumber = data.isrcMode === "Auto" ? existingRelease.isrc : data.isrc;
 
-            const safeNumber = (val) => {
+            const safeId = (val) => {
                 if (val == null || val === '' || val === undefined) return null;
-                const num = Number(val);
-                return isNaN(num) ? null : num;
+                return String(val);
             };
 
             let langCode = existingRelease.lang;
             let langName = existingRelease.content_lang;
             if (data.language && data.language != existingRelease.language_id) {
-                const langDoc = await Language.findOne({ id: data.language });
+                const langDoc = await Language.findById(data.language);
                 if (langDoc) {
                     langCode = langDoc.code;
                     langName = langDoc.name;
@@ -933,8 +1019,8 @@ class ReleaseController {
                 display_artist: data.releaseArtists || existingRelease.display_artist,
                 release_type: data.releaseType || existingRelease.release_type,
                 label_id: data.label || existingRelease.label_id,
-                genre_id: safeNumber(data.primaryGenre),
-                subgenre_id: safeNumber(data.secondaryGenre),
+                genre_id: safeId(data.primaryGenre) || existingRelease.genre_id,
+                subgenre_id: safeId(data.secondaryGenre) || existingRelease.subgenre_id,
                 release_date: data.releaseDate ? new Date(data.releaseDate) : existingRelease.release_date,
                 release_time: data.releaseTime || existingRelease.release_time,
                 p_line: data.productionHolder || existingRelease.p_line,
@@ -946,7 +1032,7 @@ class ReleaseController {
                 parental_warning_type: data.parentalWarning || existingRelease.parental_warning_type,
                 description: data.description || existingRelease.description,
                 pricing: data.pricing || existingRelease.pricing,
-                store_ids: data.selectedStores || existingRelease.store_ids,
+                store_ids: (data.selectedStores || existingRelease.store_ids || []).filter(id => id != null),
                 artwork_path: artworkFile ? getFileUrl(artworkFile.filename) : existingRelease.artwork_path,
                 is_various_artists: data.isVariousArtists !== undefined ? (data.isVariousArtists ? 1 : 0) : existingRelease.is_various_artists,
                 is_first_release: data.isFirstRelease !== undefined ? (data.isFirstRelease ? 1 : 0) : existingRelease.is_first_release,
@@ -958,7 +1044,7 @@ class ReleaseController {
                 updated_at: new Date()
             };
 
-            await Release.findOneAndUpdate({ id: releaseId }, { $set: updateData });
+            await Release.findByIdAndUpdate(releaseId, { $set: updateData });
 
             const oldTracks = await Track.find({ release_id: releaseId });
             let savedTracks = [];
@@ -970,7 +1056,8 @@ class ReleaseController {
 
                 for (let index = 0; index < data.tracks.length; index++) {
                     const track = data.tracks[index];
-                    const isExistingDbTrack = typeof track.id === 'number';
+                    const trackId = track._id || track.id;
+                    const isExistingDbTrack = trackId && mongoose.Types.ObjectId.isValid(trackId);
 
                     let audioPath = null;
                     if (track.hasNewAudioFile && trackFiles[audioFileIndex]) {
@@ -989,7 +1076,7 @@ class ReleaseController {
                         : data.releaseArtists || [];
 
                     if (isExistingDbTrack) {
-                        const oldTrack = oldTracks.find(t => t.id === track.id);
+                        const oldTrack = oldTracks.find(t => String(t._id) === String(trackId));
                         const finalAudioPath = audioPath || (oldTrack ? oldTrack.audio_path : null);
                         const finalLyricsPath = lyricsPath || (oldTrack ? oldTrack.lyrics_file_path : null);
 
@@ -1000,16 +1087,16 @@ class ReleaseController {
                             trackIsrc = oldTrack.isrc_number;
                         }
 
-                        const updatedTrack = await Track.findOneAndUpdate(
-                            { id: track.id },
+                        const updatedTrack = await Track.findByIdAndUpdate(
+                            trackId,
                             {
                                 $set: {
                                     title: track.title,
                                     position: index + 1,
                                     audio_path: finalAudioPath,
                                     lyrics_file_path: finalLyricsPath,
-                                    genre_id: safeNumber(data.primaryGenre),
-                                    subgenre_id: safeNumber(data.secondaryGenre),
+                                    genre_id: safeId(data.primaryGenre),
+                                    subgenre_id: safeId(data.secondaryGenre),
                                     display_artist: artistsArray,
                                     feature_artist: artistsArray,
                                     explicit: track.explicit,
@@ -1023,18 +1110,16 @@ class ReleaseController {
                                     mix_version: track.version || null,
                                 }
                             },
-                            { new: true }
+                            { returnDocument: 'after' }
                         );
                         savedTracks.push(updatedTrack);
                         newTrackIds.push(track.id);
                     } else {
-                        const trackId = await getNextId(Track);
                         let trackIsrc = track.isrc;
                         if (!trackIsrc) {
                             trackIsrc = await generateNextCode(Track, "isrc_number");
                         }
                         const newTrack = await Track.create({
-                            id: trackId,
                             release_id: releaseId,
                             title: track.title,
                             position: index + 1,
@@ -1042,8 +1127,8 @@ class ReleaseController {
                             audio_path: audioPath,
                             lyrics_file_path: lyricsPath,
                             duration: formatDuration(track.duration),
-                            genre_id: safeNumber(data.primaryGenre),
-                            subgenre_id: safeNumber(data.secondaryGenre),
+                            genre_id: safeId(data.primaryGenre),
+                            subgenre_id: safeId(data.secondaryGenre),
                             display_artist: artistsArray,
                             feature_artist: artistsArray,
                             explicit: track.explicit,
@@ -1058,14 +1143,13 @@ class ReleaseController {
                             mix_version: track.version || null,
                         });
                         savedTracks.push(newTrack);
-                        newTrackIds.push(trackId);
+                        newTrackIds.push(newTrack._id.toString());
                     }
                 }
 
-                // Delete any tracks that were removed
                 await Track.deleteMany({
                     release_id: releaseId,
-                    id: { $nin: newTrackIds }
+                    _id: { $nin: newTrackIds }
                 });
             }
 

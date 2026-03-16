@@ -2,12 +2,7 @@ const mongoose = require("mongoose");
 
 const UPCSchema = new mongoose.Schema(
     {
-        id: {
-            type: Number,
-            required: true,
-            unique: true,
-            index: true
-        },
+
         upc: {
             type: String,
             required: true,

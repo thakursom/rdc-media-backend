@@ -1,9 +1,5 @@
 const Artist = require("../models/artistModel");
 
-async function getNextId(model) {
-    const lastDoc = await model.findOne().sort({ id: -1 });
-    return lastDoc?.id ? lastDoc.id + 1 : 1;
-}
 
 const randomString = (len = 6) =>
     Math.random().toString(36).substring(2, 2 + len);
@@ -39,10 +35,7 @@ class ArtistController {
                 });
             }
 
-            const id = await getNextId(Artist);
-
             const artistData = {
-                id,
                 created_by: req.user?.userId || null,
                 name,
                 email,
@@ -131,7 +124,7 @@ class ArtistController {
     async getArtistById(req, res) {
         try {
             const { id } = req.params;
-            const artist = await Artist.findOne({ id: Number(id) });
+            const artist = await Artist.findById(id);
 
             if (!artist) {
                 return res.status(404).json({
@@ -156,8 +149,8 @@ class ArtistController {
     async updateArtist(req, res) {
         try {
             const { id } = req.params;
-            const updatedArtist = await Artist.findOneAndUpdate(
-                { id: Number(id) },
+            const updatedArtist = await Artist.findByIdAndUpdate(
+                id,
                 req.body,
                 { new: true }
             );
@@ -186,7 +179,7 @@ class ArtistController {
     async deleteArtist(req, res) {
         try {
             const { id } = req.params;
-            const deletedArtist = await Artist.findOneAndDelete({ id: Number(id) });
+            const deletedArtist = await Artist.findByIdAndDelete(id);
 
             if (!deletedArtist) {
                 return res.status(404).json({
@@ -220,10 +213,7 @@ class ArtistController {
                 });
             }
 
-            const artistId = await getNextId(Artist);
-
             const artistData = {
-                id: artistId,
                 created_by: req.user?.userId || null,
                 name,
                 email: generateEmail(name),
@@ -302,7 +292,7 @@ class ArtistController {
         try {
             const { id } = req.params;
 
-            const artist = await Artist.findOne({ id });
+            const artist = await Artist.findById(id);
 
             if (!artist) {
                 return res.status(404).json({

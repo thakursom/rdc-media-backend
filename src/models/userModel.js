@@ -1,10 +1,7 @@
 const mongoose = require("mongoose");
 
 const UserSchema = new mongoose.Schema({
-    id: {
-        type: Number,
-        default: null,
-    },
+
     third_party_id: {
         type: Number,
         default: null,
@@ -22,7 +19,7 @@ const UserSchema = new mongoose.Schema({
         default: null
     },
     parent_id: {
-        type: Number,
+        type: String,
         default: null
     },
     name: {

@@ -17,6 +17,12 @@ const newsletterController = require("../controllers/newsletterController");
 const ticketController = require("../controllers/ticketController");
 const bulkReleaseController = require("../controllers/bulkReleaseController");
 
+const eventController = require("../controllers/eventController");
+const dashboardController = require("../controllers/dashboardController");
+
+// Dashboard Apis
+router.get("/dashboard-stats", authMiddleware, dashboardController.getDashboardStats);
+
 //Auth Apis
 router.post("/login", authController.login);
 router.get("/get-profile", authMiddleware, authController.getProfile);
@@ -122,5 +128,15 @@ router.post("/create-ticket", authMiddleware, ticketController.createTicket);
 router.get("/ticket/:id", authMiddleware, ticketController.getTicketById);
 router.put("/update-ticket/:id", authMiddleware, ticketController.updateTicket);
 router.delete("/delete-ticket/:id", authMiddleware, ticketController.deleteTicket);
+
+// Event Apis
+router.get("/events", authMiddleware, eventController.getEvents);
+router.post("/create-event", authMiddleware, eventController.createEvent);
+router.get("/event/:id", authMiddleware, eventController.getEventById);
+router.put("/update-event/:id", authMiddleware, eventController.updateEvent);
+router.delete("/delete-event/:id", authMiddleware, eventController.deleteEvent);
+router.get("/track-event-assignments", authMiddleware, eventController.getTrackEventAssignments);
+router.get("/export-track-event-assignments", authMiddleware, eventController.exportTrackEventAssignments);
+router.post("/assign-events", authMiddleware, eventController.assignEventsToTrack);
 
 module.exports = router;

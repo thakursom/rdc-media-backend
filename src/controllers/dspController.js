@@ -1,9 +1,6 @@
 const DSP = require("../models/dspModel");
 
-async function getNextId(model) {
-    const lastDoc = await model.findOne().sort({ id: -1 }).limit(1);
-    return lastDoc && lastDoc.id ? lastDoc.id + 1 : 1;
-}
+
 
 class DSPController {
     // Get all release DSPs
@@ -61,8 +58,7 @@ class DSPController {
                 return res.status(400).json({ success: false, message: "DSP with this name already exists" });
             }
 
-            const id = await getNextId(DSP);
-            const newDSP = new DSP({ id, name, description, status: status ?? 1 });
+            const newDSP = new DSP({ name, description, status: status ?? 1 });
             await newDSP.save();
 
             res.status(201).json({ success: true, message: "DSP created successfully", data: newDSP });
@@ -78,8 +74,8 @@ class DSPController {
             const { id } = req.params;
             const updateData = req.body;
 
-            const dsp = await DSP.findOneAndUpdate(
-                { id: id },
+            const dsp = await DSP.findByIdAndUpdate(
+                id,
                 { $set: updateData },
                 { new: true }
             );
@@ -100,7 +96,7 @@ class DSPController {
         try {
             const { id } = req.params;
 
-            const dsp = await DSP.findOneAndDelete({ id: id });
+            const dsp = await DSP.findByIdAndDelete(id);
 
             if (!dsp) {
                 return res.status(404).json({ success: false, message: "DSP not found" });

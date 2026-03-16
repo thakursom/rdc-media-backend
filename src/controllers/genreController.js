@@ -1,10 +1,7 @@
 const Genre = require("../models/genreModel");
 const SubGenre = require("../models/subGenreModel");
 
-async function getNextId(model) {
-    const lastDoc = await model.findOne().sort({ id: -1 }).limit(1);
-    return lastDoc && lastDoc.id ? lastDoc.id + 1 : 1;
-}
+
 
 class GenreController {
 
@@ -44,11 +41,41 @@ class GenreController {
 
             const query = { status: 1 };
             if (genre_id) {
-                query.genre_id = Number(genre_id);
+                query.genre_id = genre_id;
             }
 
             const totalDocs = await SubGenre.countDocuments(query);
-            const subGenres = await SubGenre.find(query).sort({ title: 1 }).skip(skip).limit(limit);
+            const subGenres = await SubGenre.aggregate([
+                { $match: query },
+                {
+                    $lookup: {
+                        from: "genres",
+                        let: { gid: "$genre_id" },
+                        pipeline: [
+                            {
+                                $match: {
+                                    $expr: {
+                                        $or: [
+                                            { $eq: ["$_id", "$$gid"] },
+                                            {
+                                                $eq: [
+                                                    "$_id",
+                                                    { $convert: { input: "$$gid", to: "objectId", onError: null, onNull: null } }
+                                                ]
+                                            }
+                                        ]
+                                    }
+                                }
+                            }
+                        ],
+                        as: "genreDetails"
+                    }
+                },
+                { $unwind: { path: "$genreDetails", preserveNullAndEmptyArrays: true } },
+                { $sort: { title: 1 } },
+                { $skip: skip },
+                { $limit: limit }
+            ]);
 
             return res.status(200).json({
                 success: true,
@@ -102,11 +129,41 @@ class GenreController {
 
             const query = {};
             if (genre_id) {
-                query.genre_id = Number(genre_id);
+                query.genre_id = genre_id;
             }
 
             const totalDocs = await SubGenre.countDocuments(query);
-            const subGenres = await SubGenre.find(query).sort({ createdAt: -1 }).skip(skip).limit(limit);
+            const subGenres = await SubGenre.aggregate([
+                { $match: query },
+                {
+                    $lookup: {
+                        from: "genres",
+                        let: { gid: "$genre_id" },
+                        pipeline: [
+                            {
+                                $match: {
+                                    $expr: {
+                                        $or: [
+                                            { $eq: ["$_id", "$$gid"] },
+                                            {
+                                                $eq: [
+                                                    "$_id",
+                                                    { $convert: { input: "$$gid", to: "objectId", onError: null, onNull: null } }
+                                                ]
+                                            }
+                                        ]
+                                    }
+                                }
+                            }
+                        ],
+                        as: "genreDetails"
+                    }
+                },
+                { $unwind: { path: "$genreDetails", preserveNullAndEmptyArrays: true } },
+                { $sort: { createdAt: -1 } },
+                { $skip: skip },
+                { $limit: limit }
+            ]);
 
             return res.status(200).json({
                 success: true,
@@ -130,8 +187,7 @@ class GenreController {
             const { title, description } = req.body;
             if (!title) return res.status(400).json({ success: false, message: "Title is required" });
 
-            const id = await getNextId(Genre);
-            const newGenre = await Genre.create({ id, title, description });
+            const newGenre = await Genre.create({ title, description });
 
             return res.status(201).json({ success: true, message: "Genre created", data: newGenre });
         } catch (error) {
@@ -146,11 +202,9 @@ class GenreController {
             const { title, genre_id, description } = req.body;
             if (!title || !genre_id) return res.status(400).json({ success: false, message: "Title and genre_id are required" });
 
-            const id = await getNextId(SubGenre);
             const newSubGenre = await SubGenre.create({
-                id,
                 title,
-                genre_id: Number(genre_id),
+                genre_id: genre_id,
                 description
             });
 
@@ -168,10 +222,10 @@ class GenreController {
             const { title, description, status, genre_id } = req.body;
 
             const updateData = { title, description, status };
-            if (genre_id) updateData.genre_id = Number(genre_id);
+            if (genre_id) updateData.genre_id = genre_id;
 
-            const updatedSubGenre = await SubGenre.findOneAndUpdate(
-                { id: id },
+            const updatedSubGenre = await SubGenre.findByIdAndUpdate(
+                id,
                 updateData,
                 { new: true }
             );
@@ -189,7 +243,7 @@ class GenreController {
     async deleteSubGenre(req, res) {
         try {
             const { id } = req.params;
-            const deletedSubGenre = await SubGenre.findOneAndDelete({ id: id });
+            const deletedSubGenre = await SubGenre.findByIdAndDelete(id);
 
             if (!deletedSubGenre) return res.status(404).json({ success: false, message: "SubGenre not found" });
 
@@ -206,8 +260,8 @@ class GenreController {
             const { id } = req.params;
             const { title, description, status } = req.body;
 
-            const updatedGenre = await Genre.findOneAndUpdate(
-                { id: id },
+            const updatedGenre = await Genre.findByIdAndUpdate(
+                id,
                 { title, description, status },
                 { new: true }
             );
@@ -225,7 +279,7 @@ class GenreController {
     async deleteGenre(req, res) {
         try {
             const { id } = req.params;
-            const deletedGenre = await Genre.findOneAndDelete({ id: id });
+            const deletedGenre = await Genre.findByIdAndDelete(id);
 
             if (!deletedGenre) return res.status(404).json({ success: false, message: "Genre not found" });
 

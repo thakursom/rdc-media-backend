@@ -2,14 +2,9 @@ const mongoose = require("mongoose");
 
 const SubGenreSchema = new mongoose.Schema(
     {
-        id: {
-            type: Number,
-            required: true,
-            unique: true,
-            index: true
-        },
+
         genre_id: {
-            type: Number,
+            type: String,
             required: true,
             ref: "Genre"
         },

@@ -2,10 +2,7 @@ const User = require("../models/userModel");
 const ResponseService = require("../services/responseService");
 const bcrypt = require("bcryptjs");
 
-async function getNextId(model) {
-    const lastDoc = await model.findOne().sort({ id: -1 }).limit(1);
-    return lastDoc && lastDoc.id ? lastDoc.id + 1 : 1;
-}
+
 
 class UserController {
 
@@ -19,7 +16,7 @@ class UserController {
 
             let query = {};
             if (id) {
-                query.id = id;
+                query._id = id;
             }
             if (role) {
                 query.role = role;
@@ -70,15 +67,12 @@ class UserController {
             }
 
             const hashedPassword = await bcrypt.hash(password, 10);
-            const id = await getNextId(User);
-
             let assigned_parent_id = null;
             if (role === "Sub User") {
                 assigned_parent_id = parent_id || req.user?.userId;
             }
 
             const newUser = new User({
-                id,
                 name,
                 email,
                 phone,
@@ -105,13 +99,7 @@ class UserController {
             const { id } = req.params;
             const { name, email, phone, password, role, third_party_username, parent_id } = req.body;
 
-            // Try finding by custom id (Number) first
-            let user = await User.findOne({ id: id });
-
-            // If not found, try by _id (ObjectId)
-            if (!user && id.match(/^[0-9a-fA-F]{24}$/)) {
-                user = await User.findById(id);
-            }
+            let user = await User.findById(id);
 
             if (!user) {
                 return ResponseService.error(res, "User not found", 404);
@@ -149,10 +137,7 @@ class UserController {
         try {
             const { id } = req.params;
 
-            let user = await User.findOne({ id: id });
-            if (!user && id.match(/^[0-9a-fA-F]{24}$/)) {
-                user = await User.findById(id);
-            }
+            let user = await User.findById(id);
 
             if (!user) {
                 return ResponseService.error(res, "User not found", 404);
@@ -176,7 +161,7 @@ class UserController {
             }
 
             const labels = await User.find(query)
-                .select("_id id name parent_id amount");
+                .select("_id name parent_id amount");
 
             return ResponseService.success(res, "Label fetched successfully", { labels });
 
@@ -198,7 +183,7 @@ class UserController {
             }
 
             const labels = await User.find(query)
-                .select("_id id name parent_id");
+                .select("_id name parent_id");
 
             return ResponseService.success(res, "Labels fetched successfully", { labels });
 
@@ -212,10 +197,7 @@ class UserController {
         try {
             const { id } = req.params;
 
-            let user = await User.findOne({ id: id });
-            if (!user && id.match(/^[0-9a-fA-F]{24}$/)) {
-                user = await User.findById(id);
-            }
+            let user = await User.findById(id);
 
             if (!user) return ResponseService.error(res, "User not found", 404);
 
@@ -234,10 +216,7 @@ class UserController {
         try {
             const { id } = req.params;
 
-            let user = await User.findOne({ id: id });
-            if (!user && id.match(/^[0-9a-fA-F]{24}$/)) {
-                user = await User.findById(id);
-            }
+            let user = await User.findById(id);
 
             if (!user) return ResponseService.error(res, "User not found", 404);
 
