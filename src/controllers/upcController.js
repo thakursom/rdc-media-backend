@@ -127,8 +127,8 @@ class UPCController {
             const { id } = req.params;
             const { status } = req.body;
 
-            const updatedUPC = await UPC.findOneAndUpdate(
-                { id: id },
+            const updatedUPC = await UPC.findByIdAndUpdate(
+                id,
                 { status: Number(status) },
                 { new: true }
             );
@@ -151,8 +151,8 @@ class UPCController {
             // Optional: You could add a check here to ensure the new UPC/EAN isn't already taken by another document
             // For now we just update and let Mongoose unique index throw an error if it's a conflict.
 
-            const updatedUPC = await UPC.findOneAndUpdate(
-                { id: id },
+            const updatedUPC = await UPC.findByIdAndUpdate(
+                id,
                 { upc, ean, status: status !== undefined ? Number(status) : undefined },
                 { new: true }
             );
@@ -173,7 +173,7 @@ class UPCController {
     async deleteUPC(req, res) {
         try {
             const { id } = req.params;
-            const deletedUPC = await UPC.findOneAndDelete({ id: id });
+            const deletedUPC = await UPC.findByIdAndDelete(id);
 
             if (!deletedUPC) return res.status(404).json({ success: false, message: "UPC not found" });
 
