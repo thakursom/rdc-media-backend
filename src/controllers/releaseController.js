@@ -3,8 +3,6 @@ const Track = require("../models/trackModel");
 const User = require("../models/userModel");
 const Label = require("../models/labelModel");
 const Language = require("../models/languageModel");
-const Genre = require("../models/genreModel");
-const SubGenre = require("../models/subGenreModel");
 const ReleaseRemark = require("../models/releaseRemarkModel");
 const Joi = require("joi");
 const mongoose = require("mongoose");
@@ -316,13 +314,13 @@ class ReleaseController {
                         { _id: mongoose.isValidObjectId(label) ? label : null }
                     ]
                 }).select("_id");
-                
+
                 const labelIds = matchingLabels.map(l => String(l._id));
                 // Add the input itself if it's a valid ID but not found in the name search
                 if (mongoose.isValidObjectId(label) && !labelIds.includes(String(label))) {
                     labelIds.push(String(label));
                 }
-                
+
                 query.label_id = { $in: labelIds };
             }
 
@@ -390,7 +388,7 @@ class ReleaseController {
                         label_data: { $arrayElemAt: ["$label_data", 0] }
                     }
                 },
-                // Join with Tracks to get counts
+                // Join with Tracks
                 {
                     $lookup: {
                         from: "tracks",
@@ -404,6 +402,25 @@ class ReleaseController {
                                             { $eq: ["$release_id", "$$rid"] }
                                         ]
                                     }
+                                }
+                            },
+                            {
+                                $lookup: {
+                                    from: "trackeventassignments",
+                                    let: { tid: "$_id" },
+                                    pipeline: [
+                                        {
+                                            $match: {
+                                                $expr: {
+                                                    $or: [
+                                                        { $eq: ["$trackId", { $toString: "$$tid" }] },
+                                                        { $eq: ["$trackId", "$$tid"] }
+                                                    ]
+                                                }
+                                            }
+                                        }
+                                    ],
+                                    as: "assignedEvents"
                                 }
                             }
                         ],
@@ -548,7 +565,8 @@ class ReleaseController {
                                     producer: "$$t.producer",
                                     lyricist: "$$t.lyricist",
                                     remixer: "$$t.remixer",
-                                    artist: { $arrayElemAt: ["$$t.display_artist", 0] }
+                                    artist: { $arrayElemAt: ["$$t.display_artist", 0] },
+                                    assignedEvents: "$$t.assignedEvents"
                                 }
                             }
                         },
@@ -560,7 +578,7 @@ class ReleaseController {
                         updatedAt: 1
                     }
                 },
-                // Re-apply sort because grouping was removed (grouping was also problematic)
+                // Re-apply sort
                 { $sort: sortStage }
             ];
 
@@ -690,6 +708,25 @@ class ReleaseController {
                                             { $eq: ["$release_id", "$$rid"] }
                                         ]
                                     }
+                                }
+                            },
+                            {
+                                $lookup: {
+                                    from: "trackeventassignments",
+                                    let: { tid: "$_id" },
+                                    pipeline: [
+                                        {
+                                            $match: {
+                                                $expr: {
+                                                    $or: [
+                                                        { $eq: ["$trackId", { $toString: "$$tid" }] },
+                                                        { $eq: ["$trackId", "$$tid"] }
+                                                    ]
+                                                }
+                                            }
+                                        }
+                                    ],
+                                    as: "assignedEvents"
                                 }
                             }
                         ],
@@ -867,7 +904,8 @@ class ReleaseController {
                                     lyrics_text: "$$t.lyrics_text",
                                     explicit: "$$t.explicit",
                                     display_artist: "$$t.display_artist",
-                                    artist: { $arrayElemAt: ["$$t.display_artist", 0] }
+                                    artist: { $arrayElemAt: ["$$t.display_artist", 0] },
+                                    assignedEvents: "$$t.assignedEvents"
                                 }
                             }
                         },

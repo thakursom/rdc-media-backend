@@ -1,16 +1,11 @@
 const Release = require("../models/releaseModel");
-const User = require("../models/userModel");
-const Artist = require("../models/artistModel");
 const Label = require("../models/labelModel");
 const Track = require("../models/trackModel");
-const mongoose = require("mongoose");
 
-const trendAgg = async (model, dateField = "createdAt") => {
+const trendAgg = async (model, matchQuery, dateField = "createdAt") => {
     return await model.aggregate([
         {
-            $match: {
-                [dateField]: { $gte: new Date(new Date().setFullYear(new Date().getFullYear() - 1)) }
-            }
+            $match: matchQuery
         },
         {
             $group: {
@@ -51,33 +46,60 @@ class DashboardController {
             const totalTracks = await Track.countDocuments(dateQuery);
             const totalLabels = await Label.countDocuments(dateQuery);
 
-            // 2. Real Trend Data (Last 12 months)
-            const last12Months = [];
-            for (let i = 11; i >= 0; i--) {
-                const d = new Date();
-                d.setMonth(d.getMonth() - i);
-                last12Months.push({
-                    month: d.getMonth() + 1,
-                    year: d.getFullYear(),
-                    label: d.toLocaleString('default', { month: 'short' }) + " " + d.getFullYear()
-                });
+            // 2. Real Trend Data (Filtered or Last 12 months)
+            const trendLabels = [];
+            let trendMatch = {};
+
+            if (startDate && endDate) {
+                trendMatch.createdAt = {
+                    $gte: new Date(startDate),
+                    $lte: new Date(endDate)
+                };
+
+                // Generate labels for the specific range
+                let current = new Date(startDate);
+                let end = new Date(endDate);
+                while (current <= end) {
+                    trendLabels.push({
+                        month: current.getMonth() + 1,
+                        year: current.getFullYear(),
+                        label: current.toLocaleString('default', { month: 'short' }) + " " + current.getFullYear()
+                    });
+                    current.setMonth(current.getMonth() + 1);
+                    // Avoid infinite loop if range is huge (limit to 24 months for safety)
+                    if (trendLabels.length > 24) break;
+                }
+            } else {
+                const oneYearAgo = new Date();
+                oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
+                trendMatch.createdAt = { $gte: oneYearAgo };
+
+                for (let i = 11; i >= 0; i--) {
+                    const d = new Date();
+                    d.setMonth(d.getMonth() - i);
+                    trendLabels.push({
+                        month: d.getMonth() + 1,
+                        year: d.getFullYear(),
+                        label: d.toLocaleString('default', { month: 'short' }) + " " + d.getFullYear()
+                    });
+                }
             }
 
             const [albumsTrend, tracksTrend, labelsTrendAgg] = await Promise.all([
-                trendAgg(Release),
-                trendAgg(Track),
-                trendAgg(Label)
+                trendAgg(Release, trendMatch),
+                trendAgg(Track, trendMatch),
+                trendAgg(Label, trendMatch)
             ]);
 
             const formatTrend = (aggData) => {
-                return last12Months.map(m => {
+                return trendLabels.map(m => {
                     const found = aggData.find(d => d._id.month === m.month && d._id.year === m.year);
                     return found ? found.count : 0;
                 });
             };
 
             const trendData = {
-                labels: last12Months.map(m => m.label),
+                labels: trendLabels.map(m => m.label),
                 albums: formatTrend(albumsTrend),
                 tracks: formatTrend(tracksTrend),
                 labelsTrend: formatTrend(labelsTrendAgg)

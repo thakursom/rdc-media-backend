@@ -1,8 +1,7 @@
 const crypto = require("crypto");
 const jwt = require("jsonwebtoken");
 const bcrypt = require("bcryptjs");
-const otplib = require("otplib");
-const authenticator = otplib.authenticator || otplib;
+const speakeasy = require("speakeasy");
 const qrcode = require("qrcode");
 
 const ResponseService = require("../services/responseService");
@@ -115,9 +114,11 @@ class AuthController {
                 return ResponseService.error(res, "User not found or 2FA not enabled", 404);
             }
 
-            const isValid = authenticator.verify({
+            const isValid = speakeasy.totp.verify({
+                secret: user.twoFactorSecret,
+                encoding: 'base32',
                 token: code,
-                secret: user.twoFactorSecret
+                window: 1
             });
 
             if (!isValid) {
@@ -173,51 +174,20 @@ class AuthController {
             const user = await User.findById(_id);
             if (!user) return ResponseService.error(res, "User not found", 404);
 
-            console.log("Debug: authenticator keys", Object.keys(authenticator));
-            if (!authenticator || typeof authenticator.generateSecret !== 'function') {
-                throw new Error("TOTP Authenticator is not properly initialized");
-            }
-
-            const secret = authenticator.generateSecret();
-
-            console.log("Debug: 2FA Generation Details", {
-                email: user.email,
-                issuer: "RDC-Media",
-                secretLength: secret ? secret.length : 'N/A',
-                uriMethodName: authenticator.generateURI ? 'generateURI' : (authenticator.keyURI ? 'keyURI' : 'keyuri')
+            const secretData = speakeasy.generateSecret({
+                length: 20,
+                name: `RDC-Media (${user.email})`,
+                issuer: "RDC-Media"
             });
 
-            const uriMethod = authenticator.generateURI || authenticator.keyURI || authenticator.keyuri;
-            if (typeof uriMethod !== 'function') {
-                throw new Error("TOTP Authenticator is missing URI generation method. Available: " + Object.keys(authenticator).join(', '));
-            }
-
-            let otpauth;
-            try {
-                // In otplib v13, generateURI often expects an object
-                if (authenticator.generateURI) {
-                    otpauth = authenticator.generateURI({
-                        secret: secret,
-                        label: user.email,
-                        issuer: "RDC-Media"
-                    });
-                } else {
-                    otpauth = uriMethod.call(authenticator, user.email, "RDC-Media", secret);
-                }
-            } catch (err) {
-                console.warn("Library URI generation failed, using manual fallback:", err.message);
-                // Last resort manual fallback
-                otpauth = `otpauth://totp/${encodeURIComponent("RDC-Media")}:${encodeURIComponent(user.email)}?secret=${secret}&issuer=${encodeURIComponent("RDC-Media")}`;
-            }
-
-            const qrCodeUrl = await qrcode.toDataURL(otpauth);
+            const qrCodeUrl = await qrcode.toDataURL(secretData.otpauth_url);
 
             // Store secret temporarily but don't enable yet
-            user.twoFactorSecret = secret;
+            user.twoFactorSecret = secretData.base32;
             await user.save();
 
             return ResponseService.success(res, "2FA Secret generated", {
-                secret,
+                secret: secretData.base32,
                 qrCodeUrl
             });
         } catch (error) {
@@ -237,9 +207,11 @@ class AuthController {
                 return ResponseService.error(res, "2FA setup not initialized", 400);
             }
 
-            const isValid = authenticator.verify({
+            const isValid = speakeasy.totp.verify({
+                secret: user.twoFactorSecret,
+                encoding: 'base32',
                 token: code,
-                secret: user.twoFactorSecret
+                window: 1
             });
 
             if (!isValid) {
@@ -265,9 +237,11 @@ class AuthController {
             const user = await User.findById(_id);
             if (!user) return ResponseService.error(res, "User not found", 404);
 
-            const isValid = authenticator.verify({
+            const isValid = speakeasy.totp.verify({
+                secret: user.twoFactorSecret,
+                encoding: 'base32',
                 token: code,
-                secret: user.twoFactorSecret
+                window: 1
             });
 
             if (!isValid) {

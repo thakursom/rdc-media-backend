@@ -49,9 +49,9 @@ const resolveLabel = async (name) => {
     }
 
     // 2. Check User collection (role: Label)
-    const userLabel = await User.findOne({ 
-        role: "Label", 
-        name: new RegExp(`^${cleanName}$`, "i") 
+    const userLabel = await User.findOne({
+        role: "Label",
+        name: new RegExp(`^${cleanName}$`, "i")
     });
     if (userLabel) {
         labelCache[cleanName] = userLabel._id;
