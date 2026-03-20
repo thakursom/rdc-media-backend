@@ -509,6 +509,12 @@ class ReleaseController {
                                 }
                             }
                         },
+                        rejection_type: {
+                            $let: {
+                                vars: { latest_remark: { $arrayElemAt: [{ $sortArray: { input: "$remarks_data", sortBy: { created_at: -1 } } }, 0] } },
+                                in: { $ifNull: ["$$latest_remark.rejection_type", null] }
+                            }
+                        },
                         primary_artist: {
                             name: { $arrayElemAt: ["$display_artist", 0] }
                         },
@@ -837,6 +843,12 @@ class ReleaseController {
                                         }
                                     }
                                 }
+                            }
+                        },
+                        rejection_type: {
+                            $let: {
+                                vars: { latest_remark: { $arrayElemAt: [{ $sortArray: { input: "$remarks_data", sortBy: { created_at: -1 } } }, 0] } },
+                                in: { $ifNull: ["$$latest_remark.rejection_type", null] }
                             }
                         },
                         display_artist: 1,

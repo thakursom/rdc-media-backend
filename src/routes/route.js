@@ -5,7 +5,6 @@ const authMiddleware = require("../middlewares/authMiddleware");
 const releaseController = require("../controllers/releaseController");
 const artistController = require("../controllers/artistController");
 const userController = require("../controllers/userController");
-
 const genreController = require("../controllers/genreController");
 const languageController = require("../controllers/languageController");
 const dspController = require("../controllers/dspController");
@@ -16,7 +15,6 @@ const labelController = require("../controllers/labelController");
 const newsletterController = require("../controllers/newsletterController");
 const ticketController = require("../controllers/ticketController");
 const bulkReleaseController = require("../controllers/bulkReleaseController");
-
 const eventController = require("../controllers/eventController");
 const dashboardController = require("../controllers/dashboardController");
 
