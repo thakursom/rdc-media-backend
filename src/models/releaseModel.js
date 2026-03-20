@@ -181,6 +181,10 @@ const ReleaseSchema = new mongoose.Schema(
             type: String,
             default: "No"
         },
+        country_restrictions_list: {
+            type: [String],
+            default: []
+        },
         previously_released: {
             type: String,
             default: "No"

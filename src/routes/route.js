@@ -17,6 +17,7 @@ const ticketController = require("../controllers/ticketController");
 const bulkReleaseController = require("../controllers/bulkReleaseController");
 const eventController = require("../controllers/eventController");
 const dashboardController = require("../controllers/dashboardController");
+const { upload, validateArtworkMagicBytes, validateTrackMagicBytes } = require("../middlewares/uploadMiddleware");
 
 // Dashboard Apis
 router.get("/dashboard-stats", authMiddleware, dashboardController.getDashboardStats);
@@ -32,19 +33,18 @@ router.post("/forgot-password", authController.forgotPassword);
 router.post("/reset-password/:token", authController.resetPassword);
 router.post("/change-password", authMiddleware, authController.changePassword);
 
-const upload = require("../middlewares/uploadMiddleware");
 
 //Release Apis
 router.post("/create-release", authMiddleware, upload.fields([
     { name: 'artwork', maxCount: 1 },
     { name: 'trackFiles', maxCount: 20 },
-    { name: 'lyricsFiles', maxCount: 20 } // In case we support multiple lyrics files
-]), releaseController.createRelease);
+    { name: 'lyricsFiles', maxCount: 20 }
+]), validateArtworkMagicBytes, validateTrackMagicBytes, releaseController.createRelease);
 router.put("/update-release/:id", authMiddleware, upload.fields([
     { name: 'artwork', maxCount: 1 },
     { name: 'trackFiles', maxCount: 20 },
     { name: 'lyricsFiles', maxCount: 20 }
-]), releaseController.updateRelease);
+]), validateArtworkMagicBytes, validateTrackMagicBytes, releaseController.updateRelease);
 router.get("/releases", authMiddleware, releaseController.getReleases);
 router.get("/releases/:id", authMiddleware, releaseController.getReleaseById);
 router.put("/update-release-status/:id", authMiddleware, upload.single("rejection_file"), releaseController.updateReleaseStatus);
