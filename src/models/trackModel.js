@@ -145,6 +145,43 @@ const TrackSchema = new mongoose.Schema({
         type: Number,
         default: 0
     },
+    explicitConfirmation: {
+        type: Number,
+        default: 0
+    },
+    ownRightsConfirmation: {
+        type: Number,
+        default: 0
+    },
+    noOtherArtistName: {
+        type: Number,
+        default: 0
+    },
+    noOtherAlbumTitle: {
+        type: Number,
+        default: 0
+    },
+
+    preview_start: {
+        type: Number,
+        default: 0
+    },
+    c_line: {
+        type: String,
+        default: null
+    },
+    c_line_year: {
+        type: String,
+        default: null
+    },
+    p_line: {
+        type: String,
+        default: null
+    },
+    p_line_year: {
+        type: String,
+        default: null
+    },
 
     start_time: {
         type: String,

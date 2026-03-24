@@ -61,9 +61,9 @@ class ReleaseController {
                 releaseDate: Joi.date().required(),
                 label: Joi.any().optional().allow(null, ''),
                 productionHolder: Joi.string().optional().allow(null, ''),
-                productionYear: Joi.string().optional().allow(null, ''),
+                productionYear: Joi.any().optional().allow(null, ''),
                 copyrightHolder: Joi.string().optional().allow(null, ''),
-                copyrightYear: Joi.string().optional().allow(null, ''),
+                copyrightYear: Joi.any().optional().allow(null, ''),
                 upcMode: Joi.string().valid('Auto', 'Manual').required(),
                 upc: Joi.string().when('upcMode', { is: 'Manual', then: Joi.required(), otherwise: Joi.optional().allow(null, '') }),
                 isrcMode: Joi.string().valid('Auto', 'Manual').required(),
@@ -129,8 +129,8 @@ class ReleaseController {
                 content_lang: langName,
                 language_id: data.language || null,
                 display_artist: data.releaseArtists || [],
-                artists: '',
-                feature_artist: null,
+                artists: (data.releaseArtists || []).join(', '),
+                feature_artist: (data.releaseArtists || []).join(', '),
                 release_type: data.releaseType || 'single',
                 label_id: data.label || null,
                 sublabel_id: null,
@@ -155,11 +155,12 @@ class ReleaseController {
                 is_various_artists: data.isVariousArtists ? 1 : 0,
                 is_first_release: data.isFirstRelease ? 1 : 0,
                 is_priority: data.priorityDistribution ? 1 : 0,
-                is_instrumental: data.is_instrumental !== undefined ? data.is_instrumental : (data.isInstrumental ? 1 : 0),
+                is_instrumental: data.is_instrumental !== undefined ? data.is_instrumental : 0,
                 country_restrictions: data.countryRestrictions || 'No',
                 country_restrictions_list: data.countryRestrictionsList || [],
                 previously_released: data.previouslyReleased || 'No',
                 future_stores: data.futureStores || 'Yes',
+                chart_registration: data.chartRegistration || [],
                 status: 'processing',
                 create_type: data.create_type || null,
                 created_at: new Date(),
@@ -190,11 +191,11 @@ class ReleaseController {
                             lyricsFileIndex++;
                         }
 
-                        const artistsArray = (Array.isArray(track.artists) && track.artists.length > 0)
-                            ? track.artists
+                        const artistsArray = (Array.isArray(track.display_artist) && track.display_artist.length > 0)
+                            ? track.display_artist
                             : data.releaseArtists || [];
 
-                        let trackIsrc = track.isrc;
+                        let trackIsrc = track.isrc_number;
                         if (!trackIsrc) {
                             trackIsrc = await generateNextCode(Track, "isrc_number");
                         }
@@ -211,7 +212,11 @@ class ReleaseController {
                             subgenre_id: safeId(data.secondaryGenre),
                             display_artist: artistsArray,
                             feature_artist: artistsArray,
-                            explicit: track.explicit,
+                            explicit: track.explicit ? 1 : 0,
+                            explicitConfirmation: track.explicitConfirmation ? 1 : 0,
+                            ownRightsConfirmation: track.ownRightsConfirmation ? 1 : 0,
+                            noOtherArtistName: track.noOtherArtistName ? 1 : 0,
+                            noOtherAlbumTitle: track.noOtherAlbumTitle ? 1 : 0,
                             isrc_number: trackIsrc || null,
                             have_isrc: trackIsrc ? 1 : 0,
                             original_audio_name: track.name,
@@ -219,8 +224,13 @@ class ReleaseController {
                             producer: track.producer || null,
                             lyricist: track.lyricist || null,
                             composer: track.composer || null,
-                            lyrics_text: track.lyrics || null,
-                            mix_version: track.version || null,
+                            lyrics_text: track.lyrics_text || null,
+                            mix_version: track.mix_version || null,
+                            preview_start: track.preview_start || 0,
+                            c_line: track.c_line || null,
+                            c_line_year: track.c_line_year || null,
+                            p_line: track.p_line || null,
+                            p_line_year: track.p_line_year || null,
                         });
 
                         savedTracks.push(newTrack);
@@ -573,13 +583,25 @@ class ReleaseController {
                                     producer: "$$t.producer",
                                     lyricist: "$$t.lyricist",
                                     remixer: "$$t.remixer",
+                                    mix_version: "$$t.mix_version",
+                                    preview_start: "$$t.preview_start",
+                                    c_line: "$$t.c_line",
+                                    c_line_year: "$$t.c_line_year",
+                                    p_line: "$$t.p_line",
+                                    p_line_year: "$$t.p_line_year",
                                     artist: { $arrayElemAt: ["$$t.display_artist", 0] },
-                                    assignedEvents: "$$t.assignedEvents"
+                                    assignedEvents: "$$t.assignedEvents",
+                                    explicitConfirmation: "$$t.explicitConfirmation",
+                                    ownRightsConfirmation: "$$t.ownRightsConfirmation",
+                                    noOtherArtistName: "$$t.noOtherArtistName",
+                                    noOtherAlbumTitle: "$$t.noOtherAlbumTitle"
                                 }
                             }
                         },
                         upc: "$upc_number",
                         catalogue_number: "$cat_number",
+                        is_instrumental: 1,
+                        chart_registration: 1,
                         territories: "$store_ids", // Using store_ids as placeholder if territories field is missing
                         stores: "$store_ids",
                         createdAt: 1,
@@ -916,10 +938,20 @@ class ReleaseController {
                                     producer: "$$t.producer",
                                     lyricist: "$$t.lyricist",
                                     lyrics_text: "$$t.lyrics_text",
+                                    mix_version: "$$t.mix_version",
+                                    preview_start: "$$t.preview_start",
+                                    c_line: "$$t.c_line",
+                                    c_line_year: "$$t.c_line_year",
+                                    p_line: "$$t.p_line",
+                                    p_line_year: "$$t.p_line_year",
                                     explicit: "$$t.explicit",
                                     display_artist: "$$t.display_artist",
                                     artist: { $arrayElemAt: ["$$t.display_artist", 0] },
-                                    assignedEvents: "$$t.assignedEvents"
+                                    assignedEvents: "$$t.assignedEvents",
+                                    explicitConfirmation: "$$t.explicitConfirmation",
+                                    ownRightsConfirmation: "$$t.ownRightsConfirmation",
+                                    noOtherArtistName: "$$t.noOtherArtistName",
+                                    noOtherAlbumTitle: "$$t.noOtherAlbumTitle"
                                 }
                             }
                         },
@@ -927,6 +959,8 @@ class ReleaseController {
                         upc: "$upc_number",
                         cat_number: 1,
                         catalogue_number: "$cat_number",
+                        is_instrumental: 1,
+                        chart_registration: 1,
                         p_line: 1,
                         p_line_year: 1,
                         c_line: 1,
@@ -1095,6 +1129,7 @@ class ReleaseController {
                 country_restrictions_list: data.countryRestrictionsList || existingRelease.country_restrictions_list,
                 previously_released: data.previouslyReleased || existingRelease.previously_released,
                 future_stores: data.futureStores || existingRelease.future_stores,
+                chart_registration: data.chartRegistration || existingRelease.chart_registration,
                 create_type: data.create_type || existingRelease.create_type,
                 updated_at: new Date()
             };
@@ -1104,11 +1139,12 @@ class ReleaseController {
             const oldTracks = await Track.find({ release_id: releaseId });
             let savedTracks = [];
 
-            if (data.tracks && data.tracks.length > 0) {
-                let audioFileIndex = 0;
-                let lyricsFileIndex = 0;
-                const newTrackIds = [];
+            // Update tracks: Remove guard to allow deleting all tracks
+            let audioFileIndex = 0;
+            let lyricsFileIndex = 0;
+            const newTrackIds = [];
 
+            if (data.tracks && data.tracks.length > 0) {
                 for (let index = 0; index < data.tracks.length; index++) {
                     const track = data.tracks[index];
                     const trackId = track._id || track.id;
@@ -1126,8 +1162,8 @@ class ReleaseController {
                         lyricsFileIndex++;
                     }
 
-                    const artistsArray = (Array.isArray(track.artists) && track.artists.length > 0)
-                        ? track.artists
+                    const artistsArray = (Array.isArray(track.display_artist) && track.display_artist.length > 0)
+                        ? track.display_artist
                         : data.releaseArtists || [];
 
                     if (isExistingDbTrack) {
@@ -1135,7 +1171,7 @@ class ReleaseController {
                         const finalAudioPath = audioPath || (oldTrack ? oldTrack.audio_path : null);
                         const finalLyricsPath = lyricsPath || (oldTrack ? oldTrack.lyrics_file_path : null);
 
-                        let trackIsrc = track.isrc;
+                        let trackIsrc = track.isrc_number;
                         if (!trackIsrc && (!oldTrack || !oldTrack.isrc_number)) {
                             trackIsrc = await generateNextCode(Track, "isrc_number");
                         } else if (!trackIsrc && oldTrack) {
@@ -1154,23 +1190,32 @@ class ReleaseController {
                                     subgenre_id: safeId(data.secondaryGenre),
                                     display_artist: artistsArray,
                                     feature_artist: artistsArray,
-                                    explicit: track.explicit,
+                                    explicit: track.explicit ? 1 : 0,
+                                    explicitConfirmation: track.explicitConfirmation ? 1 : 0,
+                                    ownRightsConfirmation: track.ownRightsConfirmation ? 1 : 0,
+                                    noOtherArtistName: track.noOtherArtistName ? 1 : 0,
+                                    noOtherAlbumTitle: track.noOtherAlbumTitle ? 1 : 0,
                                     isrc_number: trackIsrc || null,
                                     have_isrc: trackIsrc ? 1 : 0,
                                     publisher: data.label || null,
                                     producer: track.producer || null,
                                     lyricist: track.lyricist || null,
                                     composer: track.composer || null,
-                                    lyrics_text: track.lyrics || null,
-                                    mix_version: track.version || null,
+                                    lyrics_text: track.lyrics_text || null,
+                                    mix_version: track.mix_version || null,
+                                    preview_start: track.preview_start || 0,
+                                    c_line: track.c_line || null,
+                                    c_line_year: track.c_line_year || null,
+                                    p_line: track.p_line || null,
+                                    p_line_year: track.p_line_year || null,
                                 }
                             },
                             { returnDocument: 'after' }
                         );
                         savedTracks.push(updatedTrack);
-                        newTrackIds.push(track.id);
+                        newTrackIds.push(new mongoose.Types.ObjectId(trackId));
                     } else {
-                        let trackIsrc = track.isrc;
+                        let trackIsrc = track.isrc_number;
                         if (!trackIsrc) {
                             trackIsrc = await generateNextCode(Track, "isrc_number");
                         }
@@ -1186,7 +1231,11 @@ class ReleaseController {
                             subgenre_id: safeId(data.secondaryGenre),
                             display_artist: artistsArray,
                             feature_artist: artistsArray,
-                            explicit: track.explicit,
+                            explicit: track.explicit ? 1 : 0,
+                            explicitConfirmation: track.explicitConfirmation ? 1 : 0,
+                            ownRightsConfirmation: track.ownRightsConfirmation ? 1 : 0,
+                            noOtherArtistName: track.noOtherArtistName ? 1 : 0,
+                            noOtherAlbumTitle: track.noOtherAlbumTitle ? 1 : 0,
                             isrc_number: trackIsrc || null,
                             have_isrc: trackIsrc ? 1 : 0,
                             original_audio_name: track.name,
@@ -1194,19 +1243,28 @@ class ReleaseController {
                             producer: track.producer || null,
                             lyricist: track.lyricist || null,
                             composer: track.composer || null,
-                            lyrics_text: track.lyrics || null,
-                            mix_version: track.version || null,
+                            lyrics_text: track.lyrics_text || null,
+                            mix_version: track.mix_version || null,
+                            preview_start: track.preview_start || 0,
+                            c_line: track.c_line || null,
+                            c_line_year: track.c_line_year || null,
+                            p_line: track.p_line || null,
+                            p_line_year: track.p_line_year || null,
                         });
                         savedTracks.push(newTrack);
-                        newTrackIds.push(newTrack._id.toString());
+                        newTrackIds.push(newTrack._id);
                     }
                 }
-
-                await Track.deleteMany({
-                    release_id: releaseId,
-                    _id: { $nin: newTrackIds }
-                });
             }
+
+            // Delete tracks not in the current list (Robust version)
+            await Track.deleteMany({
+                $or: [
+                    { release_id: releaseId },
+                    { release_id: mongoose.Types.ObjectId.isValid(releaseId) ? new mongoose.Types.ObjectId(releaseId) : null }
+                ],
+                _id: { $nin: newTrackIds }
+            });
 
             return res.status(200).json({
                 success: true,

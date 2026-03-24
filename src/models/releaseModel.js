@@ -250,6 +250,10 @@ const ReleaseSchema = new mongoose.Schema(
             type: String,
             default: null
         },
+        chart_registration: {
+            type: [String],
+            default: []
+        },
         rejection_reason: {
             type: String,
             default: null
