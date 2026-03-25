@@ -2,7 +2,12 @@ const Newsletter = require('../models/newsletterModel');
 
 exports.createNewsletter = async (req, res) => {
     try {
-        const { titleArtist, shortDescription, image, image_url, externalLink, status, email } = req.body;
+        let { titleArtist, shortDescription, image, image_url, externalLink, status, email } = req.body;
+
+        if (req.file) {
+            image = req.file.filename;
+            image_url = `${process.env.BASE_URL}/public/uploads/${image}`;
+        }
 
         const newNewsletter = new Newsletter({
             titleArtist,
@@ -99,7 +104,12 @@ exports.getNewsletterById = async (req, res) => {
 exports.updateNewsletter = async (req, res) => {
     try {
         const { id } = req.params;
-        const { titleArtist, shortDescription, image, image_url, externalLink, status, email } = req.body;
+        let { titleArtist, shortDescription, image, image_url, externalLink, status, email } = req.body;
+
+        if (req.file) {
+            image = req.file.filename;
+            image_url = `${process.env.BASE_URL}/public/uploads/${image}`;
+        }
         const updated = await Newsletter.findByIdAndUpdate(id, {
             titleArtist, shortDescription, image, image_url, externalLink, status, email
         }, { new: true });

@@ -11,9 +11,7 @@ class FileController {
             }
 
             const filename = req.file.filename;
-            const protocol = req.protocol;
-            const host = req.get('host');
-            const fileUrl = `${protocol}://${host}/public/uploads/${filename}`;
+            const fileUrl = `${process.env.BASE_URL}/public/uploads/${filename}`;
 
             return res.status(200).json({
                 success: true,

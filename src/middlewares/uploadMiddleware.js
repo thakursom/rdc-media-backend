@@ -37,10 +37,7 @@ function isRealImage(filePath) {
         const bytes = readMagicBytes(filePath, 8);
         // JPEG: FF D8 FF
         const isJpeg = bytes[0] === 0xFF && bytes[1] === 0xD8 && bytes[2] === 0xFF;
-        // PNG:  89 50 4E 47 0D 0A 1A 0A
-        const isPng = bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4E && bytes[3] === 0x47
-            && bytes[4] === 0x0D && bytes[5] === 0x0A && bytes[6] === 0x1A && bytes[7] === 0x0A;
-        return isJpeg || isPng;
+        return isJpeg;
     } catch {
         return false;
     }
@@ -63,18 +60,42 @@ function isRealAudio(filePath) {
     }
 }
 
-// ─── Middleware: validate artwork ────────────────────────────────────────────
-const validateArtworkMagicBytes = (req, res, next) => {
-    const artworkFile = req.files?.artwork?.[0] || (req.file?.fieldname === 'artwork' ? req.file : null);
-    if (!artworkFile) return next();
-
-    if (!isRealImage(artworkFile.path)) {
-        try { fs.unlinkSync(artworkFile.path); } catch { }
-        return res.status(400).json({
-            success: false,
-            message: "Invalid artwork file. Only real JPEG or PNG images are accepted. Renaming a file's extension is not allowed."
+// ─── Middleware: validate any image ────────────────────────────────────────────
+const validateImageMagicBytes = (req, res, next) => {
+    let filesToCheck = [];
+    if (req.file && (req.file.mimetype.startsWith('image/') || req.file.fieldname === 'artwork' || req.file.fieldname === 'artist_image' || req.file.fieldname === 'newsletter_image' || req.file.fieldname === 'rejection_file' || req.file.fieldname === 'file')) {
+        filesToCheck.push(req.file);
+    }
+    if (req.files) {
+        Object.values(req.files).flat().forEach(file => {
+             if (file.mimetype && (file.mimetype.startsWith('image/') || file.fieldname === 'artwork' || file.fieldname === 'artist_image' || file.fieldname === 'newsletter_image' || file.fieldname === 'rejection_file' || file.fieldname === 'file')) {
+                 filesToCheck.push(file);
+             }
         });
     }
+
+    const fakeFiles = [];
+    for (const file of filesToCheck) {
+        if (!isRealImage(file.path)) {
+            fakeFiles.push(file.originalname);
+            try { fs.unlinkSync(file.path); } catch { }
+        }
+    }
+
+    if (fakeFiles.length > 0) {
+        // Clean up everything else to be safe
+        if (req.file) { try { fs.unlinkSync(req.file.path); } catch {} }
+        if (req.files) {
+            Object.values(req.files).flat().forEach(f => {
+                try { fs.unlinkSync(f.path); } catch {}
+            });
+        }
+        return res.status(400).json({
+            success: false,
+            message: "Only valid JPG and JPEG images are allowed. Renaming a file's extension to bypass is not allowed."
+        });
+    }
+
     next();
 };
 
@@ -110,9 +131,15 @@ const upload = multer({
     storage: storage,
     limits: { fileSize: 200 * 1024 * 1024 }, // 200MB limit
     fileFilter: (req, file, cb) => {
-        if (file.fieldname === "artwork") {
-            if (!file.mimetype.startsWith("image/")) {
-                return cb(new Error("Only image files are allowed for artwork!"), false);
+        // Global restriction for images
+        if (file.mimetype.startsWith("image/") || file.fieldname === "artwork" || file.fieldname === "artist_image" || file.fieldname === "newsletter_image" || file.fieldname === "rejection_file" || file.fieldname === "file") {
+            const allowedMimeTypes = ["image/jpeg", "image/jpg"];
+            // Also check file extension roughly to prevent purely extension mismatched uploads
+            const extName = path.extname(file.originalname).toLowerCase();
+            const allowedExtensions = [".jpg", ".jpeg"];
+            
+            if (!allowedMimeTypes.includes(file.mimetype) || !allowedExtensions.includes(extName)) {
+                return cb(new Error("Only valid JPG and JPEG images are allowed."), false);
             }
         }
         if (file.fieldname === "trackFiles") {
@@ -120,9 +147,76 @@ const upload = multer({
                 return cb(new Error("Only audio files are allowed for tracks!"), false);
             }
         }
+        if (file.fieldname === "lyricsFiles") {
+            const extName = path.extname(file.originalname).toLowerCase();
+            const allowedLyricsExtensions = [".txt"];
+            if (!allowedLyricsExtensions.includes(extName)) {
+                return cb(new Error("Only .txt files are allowed for lyrics."), false);
+            }
+        }
         cb(null, true);
     }
 });
 
-module.exports = { upload, validateArtworkMagicBytes, validateTrackMagicBytes };
+// ─── Middleware: validate document files ─────────────────────────────────────
+const validateDocumentContent = (req, res, next) => {
+    let filesToCheck = [];
+    if (req.file && path.extname(req.file.originalname).toLowerCase() === '.txt') {
+        filesToCheck.push(req.file);
+    }
+    if (req.files) {
+        Object.values(req.files).flat().forEach(file => {
+            if (path.extname(file.originalname).toLowerCase() === '.txt') {
+                filesToCheck.push(file);
+            }
+        });
+    }
+
+    const fakeFiles = [];
+    for (const file of filesToCheck) {
+        try {
+            const content = fs.readFileSync(file.path, 'utf8');
+            
+            // Check for binary null bytes
+            if (content.indexOf('\x00') !== -1) {
+                fakeFiles.push(file.originalname);
+                fs.unlinkSync(file.path);
+                continue;
+            }
+
+            // Check if it's specifically disguised structured JSON
+            try {
+                const parsed = JSON.parse(content);
+                if (typeof parsed === 'object' && parsed !== null) {
+                    fakeFiles.push(file.originalname);
+                    fs.unlinkSync(file.path);
+                    continue;
+                }
+            } catch (e) {
+                // Not JSON, which is expected for genuine plain text
+            }
+        } catch {
+            fakeFiles.push(file.originalname);
+            try { fs.unlinkSync(file.path); } catch { }
+        }
+    }
+
+    if (fakeFiles.length > 0) {
+        // Clean up everything else to be safe
+        if (req.file) { try { fs.unlinkSync(req.file.path); } catch {} }
+        if (req.files) {
+            Object.values(req.files).flat().forEach(f => {
+                try { fs.unlinkSync(f.path); } catch {}
+            });
+        }
+        return res.status(400).json({
+            success: false,
+            message: "Invalid file(s) detected. Only genuine plain text (.txt) files are allowed. Disguised JSON or binary files are strictly rejected."
+        });
+    }
+
+    next();
+};
+
+module.exports = { upload, validateImageMagicBytes, validateTrackMagicBytes, validateDocumentContent };
 

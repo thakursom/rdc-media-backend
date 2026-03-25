@@ -17,7 +17,7 @@ const ticketController = require("../controllers/ticketController");
 const bulkReleaseController = require("../controllers/bulkReleaseController");
 const eventController = require("../controllers/eventController");
 const dashboardController = require("../controllers/dashboardController");
-const { upload, validateArtworkMagicBytes, validateTrackMagicBytes } = require("../middlewares/uploadMiddleware");
+const { upload, validateImageMagicBytes, validateTrackMagicBytes, validateDocumentContent } = require("../middlewares/uploadMiddleware");
 
 // Dashboard Apis
 router.get("/dashboard-stats", authMiddleware, dashboardController.getDashboardStats);
@@ -39,24 +39,24 @@ router.post("/create-release", authMiddleware, upload.fields([
     { name: 'artwork', maxCount: 1 },
     { name: 'trackFiles', maxCount: 20 },
     { name: 'lyricsFiles', maxCount: 20 }
-]), validateArtworkMagicBytes, validateTrackMagicBytes, releaseController.createRelease);
+]), validateImageMagicBytes, validateTrackMagicBytes, validateDocumentContent, releaseController.createRelease);
 router.put("/update-release/:id", authMiddleware, upload.fields([
     { name: 'artwork', maxCount: 1 },
     { name: 'trackFiles', maxCount: 20 },
     { name: 'lyricsFiles', maxCount: 20 }
-]), validateArtworkMagicBytes, validateTrackMagicBytes, releaseController.updateRelease);
+]), validateImageMagicBytes, validateTrackMagicBytes, validateDocumentContent, releaseController.updateRelease);
 router.get("/releases", authMiddleware, releaseController.getReleases);
 router.get("/releases/:id", authMiddleware, releaseController.getReleaseById);
-router.put("/update-release-status/:id", authMiddleware, upload.single("rejection_file"), releaseController.updateReleaseStatus);
+router.put("/update-release-status/:id", authMiddleware, upload.single("rejection_file"), validateImageMagicBytes, releaseController.updateReleaseStatus);
 router.post("/bulk-upload-release", authMiddleware, upload.single("zipFile"), bulkReleaseController.bulkUploadRelease);
 
 //Artist Apis
-router.post("/create-artist", authMiddleware, artistController.createArtist);
+router.post("/create-artist", authMiddleware, upload.single("artist_image"), validateImageMagicBytes, artistController.createArtist);
 router.get("/artists", authMiddleware, artistController.getArtists);
 router.get("/artist/:id", authMiddleware, artistController.getArtistById);
-router.put("/update-artist/:id", authMiddleware, artistController.updateArtist);
+router.put("/update-artist/:id", authMiddleware, upload.single("artist_image"), validateImageMagicBytes, artistController.updateArtist);
 router.delete("/delete-artist/:id", authMiddleware, artistController.deleteArtist);
-router.post("/upload-image", authMiddleware, upload.single("artist_image"), fileController.uploadImage);
+router.post("/upload-image", authMiddleware, upload.single("artist_image"), validateImageMagicBytes, fileController.uploadImage);
 router.post("/create-release-artist", authMiddleware, artistController.createReleaseArtist);
 router.get("/release-artists", authMiddleware, artistController.getReleaseArtists);
 router.get("/release-artist/:id", authMiddleware, artistController.getReleaseArtistById);
@@ -108,16 +108,16 @@ router.delete("/delete-label/:id", authMiddleware, labelController.deleteLabel);
 
 // UPC Apis
 router.get("/upcs", authMiddleware, upcController.getUPCs);
-router.post("/upload-upc", authMiddleware, upload.single("file"), upcController.uploadUPC);
+router.post("/upload-upc", authMiddleware, upload.single("file"), validateImageMagicBytes, upcController.uploadUPC);
 router.put("/update-upc-status/:id", authMiddleware, upcController.updateUPCStatus);
 router.put("/update-upc/:id", authMiddleware, upcController.updateUPC);
 router.delete("/delete-upc/:id", authMiddleware, upcController.deleteUPC);
 router.get("/export-upc", authMiddleware, upcController.exportUPC);
 // Newsletter Apis
 router.get("/newsletters", authMiddleware, newsletterController.getNewsletters);
-router.post("/create-newsletter", authMiddleware, newsletterController.createNewsletter);
+router.post("/create-newsletter", authMiddleware, upload.single("newsletter_image"), validateImageMagicBytes, newsletterController.createNewsletter);
 router.get("/newsletter/:id", authMiddleware, newsletterController.getNewsletterById);
-router.put("/update-newsletter/:id", authMiddleware, newsletterController.updateNewsletter);
+router.put("/update-newsletter/:id", authMiddleware, upload.single("newsletter_image"), validateImageMagicBytes, newsletterController.updateNewsletter);
 router.delete("/delete-newsletter/:id", authMiddleware, newsletterController.deleteNewsletter);
 
 // Ticket Apis

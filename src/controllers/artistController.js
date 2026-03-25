@@ -20,13 +20,18 @@ class ArtistController {
 
     async createArtist(req, res) {
         try {
-            const {
+            let {
                 name, email, sound_cloud, twitter, facebook,
                 instagram, youtube, website, brandcamp,
                 is_on_spotify, spotify_link, is_on_apple, apple_link,
                 artist_image, artist_image_url, apple_image, youtube_image_url,
                 youtube_link, facebook_profile_id, instagram_profile_id, isrc
             } = req.body;
+
+            if (req.file) {
+                artist_image = req.file.filename;
+                artist_image_url = `${process.env.BASE_URL}/public/uploads/${artist_image}`;
+            }
 
             if (!name) {
                 return res.status(400).json({
@@ -149,9 +154,16 @@ class ArtistController {
     async updateArtist(req, res) {
         try {
             const { id } = req.params;
+            const updateData = { ...req.body };
+
+            if (req.file) {
+                updateData.artist_image = req.file.filename;
+                updateData.artist_image_url = `${process.env.BASE_URL}/public/uploads/${updateData.artist_image}`;
+            }
+
             const updatedArtist = await Artist.findByIdAndUpdate(
                 id,
-                req.body,
+                updateData,
                 { new: true }
             );
 

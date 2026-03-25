@@ -267,9 +267,7 @@ class ReleaseController {
             const skip = (page - 1) * limit;
 
             // Determine Base URL dynamically from request
-            const host = req.get('host');
-            const protocol = req.protocol;
-            const dynamicBaseUrl = `${protocol}://${host}`;
+            const dynamicBaseUrl = process.env.BASE_URL;
 
             let query = { deleted: 0 };
 
@@ -643,9 +641,7 @@ class ReleaseController {
             const { id } = req.params;
 
             // Determine Base URL dynamically from request
-            const host = req.get('host');
-            const protocol = req.protocol;
-            const dynamicBaseUrl = `${protocol}://${host}`;
+            const dynamicBaseUrl = process.env.BASE_URL;
 
             const aggregation = [
                 { $match: { _id: new mongoose.Types.ObjectId(id), deleted: 0 } },
